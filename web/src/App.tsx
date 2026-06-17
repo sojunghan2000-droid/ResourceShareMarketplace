@@ -9,19 +9,21 @@ import { RegisterMaterial } from "@/views/RegisterMaterial"
 import { MyLoans } from "@/views/MyLoans"
 import { LenderManage } from "@/views/LenderManage"
 import { Dashboard } from "@/views/Dashboard"
+import { ShareView } from "@/views/ShareView"
 import { AdminView } from "@/views/AdminView"
 import { Button } from "@/components/ui/button"
 import { Header } from "@/components/Header"
 import {
-  ShieldCheck, LayoutGrid, PlusSquare, Inbox, PackageCheck, BarChart3, Settings,
+  ShieldCheck, LayoutGrid, PlusSquare, Inbox, PackageCheck, BarChart3, Settings, Users,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-type NavKey = "catalog" | "register" | "myloans" | "lender" | "dashboard" | "admin"
+type NavKey = "catalog" | "share" | "register" | "myloans" | "lender" | "dashboard" | "admin"
 // '자재 등록'은 헤더의 '+ 자재 등록' CTA 로 진입 → 사이드바 nav 에서는 제외(중복 제거)
 const NAV: { key: NavKey; label: string; icon: React.ReactNode; admin?: boolean }[] = [
   { key: "dashboard", label: "대시보드", icon: <BarChart3 className="size-4" /> },
   { key: "catalog", label: "자재 목록", icon: <LayoutGrid className="size-4" /> },
+  { key: "share", label: "공유 현황", icon: <Users className="size-4" /> },
   { key: "myloans", label: "내 신청함", icon: <Inbox className="size-4" /> },
   { key: "lender", label: "내 자재 관리", icon: <PackageCheck className="size-4" /> },
   { key: "admin", label: "관리자", icon: <Settings className="size-4" />, admin: true },
@@ -65,6 +67,7 @@ export default function App() {
   const View = () => {
     switch (nav) {
       case "catalog": return <Catalog profile={profile} />
+      case "share": return <ShareView profile={profile} />
       case "register": return <RegisterMaterial profile={profile} />
       case "myloans": return <MyLoans profile={profile} />
       case "lender": return <LenderManage profile={profile} />

@@ -807,8 +807,15 @@ def page_dashboard(user):
                 f"<span style='font-size:.82rem;color:#334155'>{lab}</span></div>",
                 unsafe_allow_html=True)
 
-    # ── 협력사별 현황 (전원 공개·읽기전용) ──
-    st.write("")
+
+# ----------------------------------------------------------------------
+# 페이지: 공유 현황 (전원 공개·읽기전용)
+# ----------------------------------------------------------------------
+def page_share(user):
+    st.markdown("## 공유 현황")
+    st.caption("협력사 간 자재 공유 현황입니다. 모든 사용자가 볼 수 있습니다.")
+
+    # ── 협력사별 현황 ──
     stats = db.public_org_stats()
     with st.container(border=True):
         st.markdown("**🏢 협력사별 현황**")
@@ -825,11 +832,11 @@ def page_dashboard(user):
                      f"<td style='color:#2563eb'>{r['used_count']}건</td><td>{od}</td></tr>")
         st.markdown(f"<table style='width:100%;font-size:.88rem'>{body}</table>", unsafe_allow_html=True)
 
-    # ── 전체 대여 현황 (전원 공개·조직 단위, 개인명 제외) ──
+    # ── 전체 대여 현황 (조직 단위, 개인명 제외) ──
     with st.container(border=True):
         st.markdown("**👥 전체 대여 현황** <span style='color:#94a3b8;font-size:.78rem'>· 협력사 간 공유 내역</span>",
                     unsafe_allow_html=True)
-        feed = db.public_loan_feed(20)
+        feed = db.public_loan_feed(30)
         if not feed:
             st.caption("대여 이력이 없습니다.")
         for l in feed:
@@ -1067,12 +1074,13 @@ def main():
     nav_items = [
         ("대시보드", ":material/bar_chart:"),
         ("자재 목록", ":material/grid_view:"),
+        ("공유 현황", ":material/groups:"),
         ("내 신청함", ":material/inbox:"),
         ("내 자재 관리", ":material/inventory_2:"),
     ]
     if auth.is_admin():
         nav_items.append(("관리자", ":material/settings:"))
-    valid_pages = {"자재 목록", "자재 등록", "내 신청함", "내 자재 관리", "대시보드", "관리자"}
+    valid_pages = {"자재 목록", "공유 현황", "자재 등록", "내 신청함", "내 자재 관리", "대시보드", "관리자"}
     choice = st.session_state.get("nav", "대시보드")
     if choice not in valid_pages:
         choice = "대시보드"
@@ -1094,6 +1102,7 @@ def main():
 
     {
         "자재 목록": page_catalog,
+        "공유 현황": page_share,
         "자재 등록": page_register,
         "내 신청함": page_my_requests,
         "내 자재 관리": page_lender,
