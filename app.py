@@ -344,9 +344,13 @@ def login_view():
         with st.container(border=True):
             tab_login, tab_signup = st.tabs(["로그인", "가입 신청"])
             with tab_login:
-                uid = st.text_input("아이디", key="login_id", placeholder="영문 소문자·숫자")
-                pw = st.text_input("비밀번호", type="password", key="login_pw")
-                if st.button("로그인", type="primary", use_container_width=True):
+                # st.form 으로 감싸면 입력 후 Enter 로 바로 제출(로그인)된다.
+                with st.form("login_form", border=False, clear_on_submit=False):
+                    uid = st.text_input("아이디", key="login_id", placeholder="영문 소문자·숫자")
+                    pw = st.text_input("비밀번호", type="password", key="login_pw")
+                    submitted = st.form_submit_button(
+                        "로그인", type="primary", use_container_width=True)
+                if submitted:
                     ok, msg = auth.sign_in(uid, pw)
                     if ok:
                         st.rerun()
