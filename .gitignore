@@ -1,0 +1,27 @@
+# 시크릿 — 절대 커밋 금지
+.streamlit/secrets.toml
+web/.env.local
+web/.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+Include/
+Lib/
+Scripts/
+pyvenv.cfg
+
+# Node / Vite
+node_modules/
+web/node_modules/
+web/dist/
+web/.vite/
+
+# OS / 기타
+.DS_Store
+Thumbs.db
+nul
+*.log
+.playwright-mcp/
