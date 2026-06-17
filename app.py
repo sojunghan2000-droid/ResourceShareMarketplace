@@ -807,6 +807,45 @@ def page_dashboard(user):
                 f"<span style='font-size:.82rem;color:#334155'>{lab}</span></div>",
                 unsafe_allow_html=True)
 
+    # ── 협력사별 현황 (전원 공개·읽기전용) ──
+    st.write("")
+    stats = db.public_org_stats()
+    with st.container(border=True):
+        st.markdown("**🏢 협력사별 현황**")
+        body = ("<tr style='color:#64748b;text-align:left;font-size:.8rem'>"
+                "<th style='padding:6px 0'>협력사</th><th>등록 자재</th>"
+                "<th>대여 제공</th><th>대여 사용</th><th>연체</th></tr>")
+        for r in stats:
+            od = ("<span style='color:#16a34a'>✓✓</span>" if r["overdue_count"] == 0
+                  else f"<span style='color:#dc2626;font-weight:700'>{r['overdue_count']}건</span>")
+            body += (f"<tr style='border-top:1px solid #e2e8f0'>"
+                     f"<td style='font-weight:700;padding:9px 0'>{r['org_name']}</td>"
+                     f"<td>{r['materials_count']}종</td>"
+                     f"<td style='color:#2563eb'>{r['provided_count']}건</td>"
+                     f"<td style='color:#2563eb'>{r['used_count']}건</td><td>{od}</td></tr>")
+        st.markdown(f"<table style='width:100%;font-size:.88rem'>{body}</table>", unsafe_allow_html=True)
+
+    # ── 전체 대여 현황 (전원 공개·조직 단위, 개인명 제외) ──
+    with st.container(border=True):
+        st.markdown("**👥 전체 대여 현황** <span style='color:#94a3b8;font-size:.78rem'>· 협력사 간 공유 내역</span>",
+                    unsafe_allow_html=True)
+        feed = db.public_loan_feed(20)
+        if not feed:
+            st.caption("대여 이력이 없습니다.")
+        for l in feed:
+            color, lab = _DOT.get(l["status"], ("#64748b", STATUS_KR.get(l["status"], l["status"])))
+            period = f"{l.get('pickup_date') or '-'} ~ {l['due_date']}"
+            row = st.columns([5, 1])
+            row[0].markdown(
+                f"<b>{l['material_name']}</b> {l['qty']}{l.get('unit') or ''}<br>"
+                f"<span style='color:#64748b;font-size:.8rem'>{l.get('lender_org') or '-'} "
+                f"→ {l.get('borrower_org') or '-'} · {period}</span>",
+                unsafe_allow_html=True)
+            row[1].markdown(
+                f"<div style='text-align:right;padding-top:6px'><span style='color:{color}'>●</span> "
+                f"<span style='font-size:.82rem;color:#334155'>{lab}</span></div>",
+                unsafe_allow_html=True)
+
 
 # ----------------------------------------------------------------------
 # 페이지: 관리자

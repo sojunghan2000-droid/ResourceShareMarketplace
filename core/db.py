@@ -114,6 +114,18 @@ def list_all_loans() -> list[dict]:
             .order("requested_at", desc=True).limit(500).execute().data)
 
 
+@st.cache_data(ttl=60)
+def public_org_stats() -> list[dict]:
+    """전원 공개(읽기전용): 협력사별 집계 현황(public_org_stats RPC)."""
+    return client().rpc("public_org_stats", {}).execute().data
+
+
+@st.cache_data(ttl=30)
+def public_loan_feed(limit: int = 30) -> list[dict]:
+    """전원 공개(읽기전용): 전체 대여 피드(조직 단위, 개인명 제외)."""
+    return client().rpc("public_loan_feed", {"p_limit": limit}).execute().data
+
+
 @st.cache_data(ttl=15)
 def list_notifications() -> list[dict]:
     """내 알림 최근 15건(RLS: 본인 것만)."""
@@ -147,6 +159,8 @@ def invalidate():
     list_incoming_loans.clear()
     list_all_loans.clear()
     list_notifications.clear()
+    public_org_stats.clear()
+    public_loan_feed.clear()
 
 
 # ----------------------------------------------------------------------

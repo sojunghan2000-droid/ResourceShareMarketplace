@@ -62,6 +62,29 @@ export async function listAllLoans(): Promise<Loan[]> {
   return (data ?? []) as Loan[]
 }
 
+// ---- 전원 공개(읽기전용) 피드 ----
+export interface OrgStat {
+  org_id: string; org_name: string
+  materials_count: number; provided_count: number; used_count: number; overdue_count: number
+}
+export interface LoanFeedItem {
+  material_name: string; qty: number; unit: string | null
+  lender_org: string | null; borrower_org: string | null
+  pickup_date: string | null; due_date: string | null; status: string; requested_at: string
+}
+
+/** 전원 공개: 협력사별 집계 현황(개인정보 없음). */
+export async function publicOrgStats(): Promise<OrgStat[]> {
+  const { data } = await supabase.rpc("public_org_stats")
+  return (data ?? []) as OrgStat[]
+}
+
+/** 전원 공개: 전체 대여 피드(조직 단위, 개인명 제외). */
+export async function publicLoanFeed(limit = 30): Promise<LoanFeedItem[]> {
+  const { data } = await supabase.rpc("public_loan_feed", { p_limit: limit })
+  return (data ?? []) as LoanFeedItem[]
+}
+
 // ---- RPC wrappers ----
 async function rpc(name: string, params: Record<string, unknown>) {
   const { data, error } = await supabase.rpc(name, params)
