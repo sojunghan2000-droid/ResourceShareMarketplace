@@ -296,7 +296,7 @@ def render_header(user):
             "<div style='display:flex;align-items:center;gap:10px;padding-top:8px'>"
             "<span style='font-weight:800;font-size:16px;color:#1e293b;letter-spacing:-.01em'>Samsung C&amp;T</span>"
             "<span style='display:inline-block;width:1px;height:15px;background:#cbd5e1'></span>"
-            "<span style='color:#64748b;font-size:12px'>안전자재 공유 플랫폼 운영</span></div>",
+            "<span style='color:#64748b;font-size:12px'>용인 덕성 AI DC</span></div>",
             unsafe_allow_html=True)
         with c[1]:
             if st.button("자재 등록", key="hdr_register", type="primary",
@@ -310,6 +310,19 @@ def render_header(user):
             with st.popover(user.get("name", "사용자"), use_container_width=True):
                 st.markdown(f"**{user.get('name','')}**  \n{org}  \n"
                             f"{'관리자' if auth.is_admin() else '멤버'}")
+                with st.expander("내 프로필 수정"):
+                    pn = st.text_input("이름", value=user.get("name", ""), key="prof_name")
+                    pp = st.text_input("연락처", value=user.get("phone") or "", key="prof_phone")
+                    if st.button("저장", key="prof_save", type="primary"):
+                        ok, m = auth.update_my_profile(pn, pp)
+                        (st.success if ok else st.error)(m)
+                        if ok:
+                            st.rerun()
+                    st.divider()
+                    np = st.text_input("새 비밀번호", type="password", key="prof_pw")
+                    if st.button("비밀번호 변경", key="prof_pwbtn"):
+                        ok, m = auth.change_password(np)
+                        (st.success if ok else st.error)(m)
                 if st.button("로그아웃", key="hdr_logout", use_container_width=True):
                     auth.sign_out(); st.rerun()
 
@@ -342,9 +355,14 @@ def login_view():
             with tab_signup:
                 uid2 = st.text_input("아이디", key="su_id", placeholder="소문자·숫자·_· (3~30자)")
                 name2 = st.text_input("이름", key="su_name")
+                email2 = st.text_input("이메일", key="su_email", placeholder="협력사 이메일")
+                st.caption("⚠ Knox(삼성 임직원) 계정(@samsung.com)은 가입할 수 없습니다.")
+                orgs_pub = auth.list_orgs_public()
+                org_map = {o["name"]: o["id"] for o in orgs_pub}
+                org_sel = st.selectbox("소속 협력사", ["선택"] + list(org_map), key="su_org")
                 pw2 = st.text_input("비밀번호", type="password", key="su_pw")
                 if st.button("가입 신청", type="primary", use_container_width=True):
-                    ok, msg = auth.sign_up(uid2, pw2, name2)
+                    ok, msg = auth.sign_up(uid2, pw2, name2, org_map.get(org_sel), email2)
                     (st.success if ok else st.error)(msg)
 
 
@@ -367,6 +385,56 @@ def _request_dialog(m):
             st.error(f"신청 실패: {e}")
 
 
+@st.dialog("자재 정보 수정")
+def _edit_material_dialog(m):
+    cats = db.list_categories()
+    codes = [c["code"] for c in cats]
+    cat = st.selectbox("카테고리", cats, index=codes.index(m["category"]) if m["category"] in codes else 0,
+                       format_func=lambda c: c["major"])
+    name = st.text_input("품목명", value=m["name"])
+    spec = st.text_input("규격", value=m.get("spec") or "")
+    c1, c2, c3 = st.columns(3)
+    qty_total = c1.number_input("총수량", 0, 1000000, int(m["qty_total"]))
+    qty_avail = c2.number_input("가용수량", 0, 1000000, int(m["qty_available"]))
+    unit = c3.text_input("단위", value=m["unit"])
+    c4, c5 = st.columns(2)
+    insp_keys = list(INSPECTION_KR)
+    insp = c4.selectbox("점검상태", insp_keys,
+                        index=insp_keys.index(m["inspection_status"]) if m["inspection_status"] in insp_keys else 0,
+                        format_func=lambda k: INSPECTION_KR[k])
+    cur_exp = date.fromisoformat(m["expires_at"]) if m.get("expires_at") else None
+    expires = c5.date_input("사용기한(없으면 비움)", value=cur_exp)
+    location = st.text_input("보관 위치", value=m.get("location") or "")
+    if m.get("photos"):
+        st.image(m["photos"][0], width=140)
+    new_files = st.file_uploader("사진 교체(선택)", type=["jpg", "jpeg", "png"],
+                                 accept_multiple_files=True, key=f"em_ph_{m['id']}")
+    if qty_avail > qty_total:
+        st.warning("가용수량이 총수량보다 클 수 없습니다.")
+    cs, cd = st.columns([3, 1])
+    if cs.button("저장", type="primary", use_container_width=True):
+        if qty_avail > qty_total:
+            st.error("수량을 확인하세요."); return
+        upd = {"category": cat["code"], "name": name.strip(), "spec": spec, "unit": unit,
+               "qty_total": int(qty_total), "qty_available": int(qty_avail),
+               "location": location, "inspection_status": insp,
+               "expires_at": str(expires) if expires else None}
+        if new_files:
+            upd["photos"] = [db.upload_bytes("material-photos", f"materials/{uuid.uuid4().hex}_{f.name}",
+                                             f.getvalue(), f.type or "image/jpeg") for f in new_files]
+        try:
+            db.client().table("materials").update(upd).eq("id", m["id"]).execute()
+            db.invalidate(); st.rerun()
+        except Exception as e:
+            st.error(f"저장 실패: {e}")
+    if cd.button("삭제", use_container_width=True):
+        try:
+            db.client().table("materials").delete().eq("id", m["id"]).execute()
+            db.invalidate(); st.rerun()
+        except Exception:
+            st.error("대여 이력이 있어 삭제할 수 없습니다.")
+
+
 def _material_card(m, user, major_by_code):
     insp = m["inspection_status"]
     insp_tone = "success" if insp == "good" else "danger" if insp in ("no_use", "damaged") else "warning"
@@ -384,9 +452,14 @@ def _material_card(m, user, major_by_code):
             f"<div class='ss-loc'>{_PIN_SVG} {m.get('location') or '위치 미지정'}</div></div>",
             unsafe_allow_html=True)
         mine = m["org_id"] == user["org_id"]
+        editable = mine or auth.is_admin()
         blocked = insp in ("no_use", "damaged") or m["qty_available"] < 1
-        if mine:
-            st.markdown("<div class='ss-pad'>" + badge("내 조직 자재", "muted") + "</div>", unsafe_allow_html=True)
+        if editable:
+            if mine:
+                st.markdown("<div class='ss-pad'>" + badge("내 조직 자재", "muted") + "</div>",
+                            unsafe_allow_html=True)
+            if st.button("수정", key=f"edit_{m['id']}", use_container_width=True):
+                _edit_material_dialog(m)
         elif blocked:
             st.button("신청 불가", key=f"blk_{m['id']}", disabled=True, use_container_width=True)
         else:
@@ -856,51 +929,68 @@ def page_admin(user):
                                   STATUS_TONE.get(l["status"], "muted"), solid=True),
                             unsafe_allow_html=True)
 
-    # ── 5) 가입 승인 대기 (사용자) ────────────────────
-    pend = db.client().table("app_users").select(
-        "*, organizations(name)").eq("status", "pending").execute().data
-    org_opts = {o["name"]: o["id"] for o in orgs}
-    st.markdown("<div style='font-weight:700;font-size:1.05rem;margin:8px 0 6px'>가입 승인 대기</div>",
-                unsafe_allow_html=True)
-    if not pend:
+    # ── 5) 협력사 관리 (관리자 CRUD) ───────────────────
+    _section_title("협력사 관리")
+    for o in orgs:
         with st.container(border=True):
-            st.markdown("<div style='text-align:center;color:#64748b;padding:18px 0'>대기 중인 가입 신청이 없습니다.</div>",
-                        unsafe_allow_html=True)
-    for u in pend:
-        with st.container(border=True):
-            st.markdown(f"<b>{u['name'] or '(이름없음)'}</b> "
-                        f"<span style='color:#64748b;font-size:.78rem'>{u['id'][:8]}…</span>",
-                        unsafe_allow_html=True)
-            c1, c2 = st.columns([3, 1])
-            sel = c1.selectbox("소속 협력사", list(org_opts), key=f"og_{u['id']}", label_visibility="collapsed")
-            if c2.button("승인", key=f"uacc_{u['id']}", type="primary", use_container_width=True):
-                db.client().table("app_users").update(
-                    {"status": "active", "org_id": org_opts[sel]}).eq("id", u["id"]).execute()
-                st.success("승인됨"); st.rerun()
+            oc = st.columns([4, 1, 1])
+            oc[0].markdown(f"<b>{o['name']}</b> "
+                           f"<span style='color:#64748b;font-size:.8rem'>· {o.get('type','partner')}</span>",
+                           unsafe_allow_html=True)
+            with oc[1].popover("이름 수정", use_container_width=True):
+                non = st.text_input("협력사명", value=o["name"], key=f"on_{o['id']}")
+                if st.button("저장", key=f"onb_{o['id']}", type="primary"):
+                    db.client().table("organizations").update({"name": non.strip()}).eq("id", o["id"]).execute()
+                    st.success("저장됨"); st.rerun()
+            if oc[2].button("삭제", key=f"odel_{o['id']}", use_container_width=True):
+                try:
+                    db.client().table("organizations").delete().eq("id", o["id"]).execute()
+                    st.success("삭제됨"); st.rerun()
+                except Exception:
+                    st.error("사용자·자재가 연결돼 있어 삭제할 수 없습니다.")
+    with st.container(border=True):
+        nc = st.columns([4, 1])
+        new_org = nc[0].text_input("새 협력사명", key="new_org",
+                                   label_visibility="collapsed", placeholder="새 협력사명 입력")
+        if nc[1].button("추가", key="add_org", type="primary", use_container_width=True):
+            if new_org.strip():
+                db.client().table("organizations").insert(
+                    {"name": new_org.strip(), "type": "partner"}).execute()
+                st.success("추가됨"); st.rerun()
 
-    # ── 6) 사용자 관리 (비밀번호 변경/초기화) ──────────
-    st.markdown("<div style='font-weight:700;font-size:1.05rem;margin:8px 0 6px'>사용자 관리</div>",
-                unsafe_allow_html=True)
-    active_users = [u for u in db.list_users() if u["status"] == "active"]
-    for u in active_users:
+    # ── 6) 사용자 관리 (정보 수정 / 비번 초기화는 시스템 관리자만) ──
+    _section_title("사용자 관리")
+    org_id_by_name = {o["name"]: o["id"] for o in orgs}
+    sysadmin = auth.is_sysadmin()
+    for u in [x for x in db.list_users() if x["status"] == "active"]:
         with st.container(border=True):
-            col = st.columns([3, 1, 1])
+            col = st.columns([4, 1.2, 1.2])
             org = (u.get("organizations") or {}).get("name", "-")
             role = "관리자" if u["role"] == "admin" else "멤버"
             col[0].markdown(f"<b>{u['name']}</b> "
-                            f"<span style='color:#64748b;font-size:.8rem'>· {org} · {role}</span>",
+                            f"<span style='color:#64748b;font-size:.8rem'>· {org} · {role}"
+                            f"{' · ' + u['contact_email'] if u.get('contact_email') else ''}</span>",
                             unsafe_allow_html=True)
-            with col[1].popover("비번 변경", use_container_width=True):
-                newpw = st.text_input("새 비밀번호", type="password", key=f"npw_{u['id']}")
-                if st.button("변경", key=f"npwb_{u['id']}", type="primary"):
-                    if len(newpw or "") < 4:
-                        st.error("4자 이상")
-                    else:
-                        try:
-                            db.admin_set_password(u["id"], newpw); st.success("변경됨")
-                        except Exception as e:
-                            st.error(str(e))
-            if col[2].button("초기화(1111)", key=f"rst_{u['id']}", use_container_width=True):
+            with col[1].popover("정보 수정", use_container_width=True):
+                en = st.text_input("이름", value=u["name"], key=f"en_{u['id']}")
+                ep = st.text_input("연락처", value=u.get("phone") or "", key=f"ep_{u['id']}")
+                org_names = list(org_id_by_name)
+                eo = st.selectbox("소속", org_names,
+                                  index=org_names.index(org) if org in org_names else 0, key=f"eo_{u['id']}")
+                er = st.selectbox("역할", ["member", "admin"],
+                                  index=0 if u["role"] == "member" else 1, key=f"er_{u['id']}")
+                es = st.selectbox("상태", ["active", "disabled"],
+                                  index=0 if u["status"] == "active" else 1, key=f"es_{u['id']}")
+                if st.button("저장", key=f"esave_{u['id']}", type="primary"):
+                    try:
+                        db.client().table("app_users").update({
+                            "name": en.strip(), "phone": (ep.strip() or None),
+                            "org_id": org_id_by_name[eo], "role": er, "status": es,
+                        }).eq("id", u["id"]).execute()
+                        st.success("저장됨"); st.rerun()
+                    except Exception as e:
+                        st.error(str(e))
+            if sysadmin and col[2].button("비번 초기화(1111)", key=f"rst_{u['id']}", use_container_width=True):
                 try:
                     db.admin_set_password(u["id"], "1111")
                     st.success(f"{u['name']} 비밀번호를 1111 로 초기화했습니다.")

@@ -13,7 +13,7 @@ export function Header({ profile, onNavigate }: { profile: Profile; onNavigate: 
         </div>
         <div className="flex items-baseline gap-2">
           <span className="text-[15px] font-bold tracking-tight text-foreground">SafeShare</span>
-          <span className="hidden text-xs text-muted-foreground sm:inline">안전자재 공유 플랫폼</span>
+          <span className="hidden text-xs text-muted-foreground sm:inline">용인 덕성 AI DC</span>
         </div>
       </div>
 

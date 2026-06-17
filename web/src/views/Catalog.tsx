@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { Search, MapPin, Package, X } from "lucide-react"
-import { listCategories, listMaterials, requestLoan } from "@/lib/api"
-import type { Category, Material, Profile } from "@/types"
+import { listCategories, listMaterials, requestLoan, updateMaterial, deleteMaterial, uploadProof } from "@/lib/api"
+import type { Category, Material, Profile, InspectionStatus } from "@/types"
 import { INSPECTION_KR } from "@/types"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -17,6 +17,8 @@ export function Catalog({ profile }: { profile: Profile }) {
   const [kw, setKw] = useState("")
   const [onlyAv, setOnlyAv] = useState(true)
   const [reqFor, setReqFor] = useState<Material | null>(null)
+  const [editFor, setEditFor] = useState<Material | null>(null)
+  const isAdmin = profile.role === "admin"
 
   const codeToMajor = useMemo(() => Object.fromEntries(cats.map((c) => [c.code, c.major])), [cats])
 
@@ -79,8 +81,11 @@ export function Catalog({ profile }: { profile: Profile }) {
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
                     <MapPin className="size-3" /> {m.location || "위치 미지정"}
                   </div>
-                  {mine ? (
-                    <Badge variant="muted" className="w-fit">내 조직 자재</Badge>
+                  {mine || isAdmin ? (
+                    <div className="flex items-center gap-2">
+                      {mine && <Badge variant="muted" className="w-fit">내 조직 자재</Badge>}
+                      <Button size="sm" variant="outline" onClick={() => setEditFor(m)}>수정</Button>
+                    </div>
                   ) : (
                     <Button size="sm" disabled={blocked} onClick={() => setReqFor(m)}>
                       {blocked ? "신청 불가" : "대여 신청"}
@@ -94,6 +99,84 @@ export function Catalog({ profile }: { profile: Profile }) {
       )}
 
       {reqFor && <RequestDialog material={reqFor} onClose={() => setReqFor(null)} onDone={() => { setReqFor(null); load() }} />}
+      {editFor && <EditDialog material={editFor} cats={cats} onClose={() => setEditFor(null)} onDone={() => { setEditFor(null); load() }} />}
+    </div>
+  )
+}
+
+function EditDialog({ material, cats, onClose, onDone }: { material: Material; cats: Category[]; onClose: () => void; onDone: () => void }) {
+  const [category, setCategory] = useState(material.category)
+  const [name, setName] = useState(material.name)
+  const [spec, setSpec] = useState(material.spec ?? "")
+  const [qtyTotal, setQtyTotal] = useState(material.qty_total)
+  const [qtyAvail, setQtyAvail] = useState(material.qty_available)
+  const [unit, setUnit] = useState(material.unit)
+  const [location, setLocation] = useState(material.location ?? "")
+  const [insp, setInsp] = useState<InspectionStatus>(material.inspection_status)
+  const [expires, setExpires] = useState(material.expires_at ?? "")
+  const [files, setFiles] = useState<File[]>([])
+  const [err, setErr] = useState("")
+  const [busy, setBusy] = useState(false)
+
+  async function save() {
+    if (qtyAvail > qtyTotal) { setErr("가용수량이 총수량보다 클 수 없습니다."); return }
+    setBusy(true); setErr("")
+    try {
+      const fields: Record<string, unknown> = {
+        category, name: name.trim(), spec, unit, qty_total: qtyTotal, qty_available: qtyAvail,
+        location, inspection_status: insp, expires_at: expires || null,
+      }
+      if (files.length) {
+        const urls: string[] = []
+        for (const f of files) urls.push(await uploadProof("material-photos", `materials/${crypto.randomUUID()}_${f.name}`, f))
+        fields.photos = urls
+      }
+      await updateMaterial(material.id, fields)
+      onDone()
+    } catch (e: any) { setErr(e.message) } finally { setBusy(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <Card className="max-h-[90vh] w-full max-w-md overflow-auto" onClick={(e) => e.stopPropagation()}>
+        <CardContent className="space-y-3 pt-6">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold">자재 정보 수정</h3>
+            <Button variant="ghost" size="icon" onClick={onClose}><X className="size-4" /></Button>
+          </div>
+          <Field label="카테고리">
+            <Select value={category} onChange={(e) => setCategory(e.target.value)}>
+              {cats.map((c) => <option key={c.code} value={c.code}>{c.major}</option>)}
+            </Select>
+          </Field>
+          <Field label="품목명"><Input value={name} onChange={(e) => setName(e.target.value)} /></Field>
+          <Field label="규격"><Input value={spec} onChange={(e) => setSpec(e.target.value)} /></Field>
+          <div className="grid grid-cols-3 gap-2">
+            <Field label="총수량"><Input type="number" value={qtyTotal} onChange={(e) => setQtyTotal(Math.max(0, +e.target.value))} /></Field>
+            <Field label="가용수량"><Input type="number" value={qtyAvail} onChange={(e) => setQtyAvail(Math.max(0, +e.target.value))} /></Field>
+            <Field label="단위"><Input value={unit} onChange={(e) => setUnit(e.target.value)} /></Field>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="점검상태">
+              <Select value={insp} onChange={(e) => setInsp(e.target.value as InspectionStatus)}>
+                {(Object.keys(INSPECTION_KR) as InspectionStatus[]).map((k) => <option key={k} value={k}>{INSPECTION_KR[k]}</option>)}
+              </Select>
+            </Field>
+            <Field label="사용기한"><Input type="date" value={expires} onChange={(e) => setExpires(e.target.value)} /></Field>
+          </div>
+          <Field label="보관 위치"><Input value={location} onChange={(e) => setLocation(e.target.value)} /></Field>
+          {material.photos?.[0] && <img src={material.photos[0]} alt="" className="h-24 w-24 rounded object-cover" />}
+          <Field label="사진 교체(선택)">
+            <input type="file" accept="image/*" multiple onChange={(e) => setFiles(Array.from(e.target.files ?? []))} />
+          </Field>
+          {err && <p className="text-sm text-destructive">{err}</p>}
+          <div className="flex justify-between gap-2 pt-1">
+            <Button variant="outline" className="text-destructive"
+              onClick={async () => { try { await deleteMaterial(material.id); onDone() } catch { setErr("대여 이력이 있어 삭제할 수 없습니다.") } }}>삭제</Button>
+            <Button disabled={busy} onClick={save}>{busy ? "저장 중…" : "저장"}</Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

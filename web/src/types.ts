@@ -8,7 +8,10 @@ export interface Profile {
   id: string
   org_id: string
   name: string
+  phone?: string | null
+  contact_email?: string | null
   role: "member" | "admin"
+  is_sysadmin?: boolean
   status: "pending" | "active" | "disabled"
   organizations?: { name: string; type: string }
 }

@@ -1,9 +1,10 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { ShieldCheck } from "lucide-react"
 import { supabase } from "@/lib/supabase"
-import { registerUser } from "@/lib/api"
+import { registerUser, listOrgsPublic } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Select } from "@/components/ui/select"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, Field } from "@/components/ui/misc"
 
@@ -17,9 +18,14 @@ export function Login() {
   const [tab, setTab] = useState("login")
   const [uid, setUid] = useState("")
   const [name, setName] = useState("")
+  const [email, setEmail] = useState("")
+  const [orgId, setOrgId] = useState("")
+  const [orgs, setOrgs] = useState<{ id: string; name: string }[]>([])
   const [pw, setPw] = useState("")
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
+
+  useEffect(() => { if (tab === "signup" && orgs.length === 0) listOrgsPublic().then(setOrgs) }, [tab])
 
   async function signIn() {
     setBusy(true); setMsg(null)
@@ -29,14 +35,20 @@ export function Login() {
   }
   async function signUp() {
     setBusy(true); setMsg(null)
+    if (/(@samsung\.com|\.samsung\.com)$/i.test(email.trim())) {
+      setMsg({ ok: false, text: "Knox(삼성 임직원) 계정은 가입할 수 없습니다. 협력사 이메일로 가입하세요." }); setBusy(false); return
+    }
     try {
-      await registerUser(uid, pw, name)
-      setMsg({ ok: true, text: "가입 신청 접수됨. 관리자 승인 후 로그인할 수 있습니다." })
+      await registerUser(uid, pw, name, orgId, email)
+      setMsg({ ok: true, text: "가입 완료! 바로 로그인하세요." })
     } catch (e: any) {
       const m = String(e?.message || e)
       const text = m.includes("DUP_ID") ? "이미 사용 중인 아이디입니다."
+        : m.includes("KNOX_BLOCKED") ? "Knox(삼성 임직원) 계정은 가입할 수 없습니다. 협력사 이메일로 가입하세요."
+        : m.includes("BAD_EMAIL") ? "올바른 이메일을 입력하세요."
         : m.includes("INVALID_ID") ? "아이디는 소문자·숫자·_·. 3~30자여야 합니다."
         : m.includes("NO_NAME") ? "이름을 입력하세요."
+        : m.includes("NO_ORG") ? "소속 협력사를 선택하세요."
         : m.includes("SHORT_PW") ? "비밀번호는 4자 이상이어야 합니다."
         : "가입 실패. 잠시 후 다시 시도하세요."
       setMsg({ ok: false, text })
@@ -62,7 +74,17 @@ export function Login() {
             <div className="space-y-3">
               <Field label="아이디"><Input value={uid} onChange={(e) => setUid(e.target.value)} placeholder="영문 소문자·숫자" /></Field>
               {tab === "signup" && (
-                <Field label="이름"><Input value={name} onChange={(e) => setName(e.target.value)} /></Field>
+                <>
+                  <Field label="이름"><Input value={name} onChange={(e) => setName(e.target.value)} /></Field>
+                  <Field label="이메일"><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="협력사 이메일" /></Field>
+                  <p className="-mt-1 text-xs text-muted-foreground">⚠ Knox(삼성 임직원) 계정(@samsung.com)은 가입할 수 없습니다.</p>
+                  <Field label="소속 협력사">
+                    <Select value={orgId} onChange={(e) => setOrgId(e.target.value)}>
+                      <option value="">선택</option>
+                      {orgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                    </Select>
+                  </Field>
+                </>
               )}
               <Field label="비밀번호"><Input type="password" value={pw} onChange={(e) => setPw(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && tab === "login" && signIn()} /></Field>

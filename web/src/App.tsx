@@ -69,7 +69,7 @@ export default function App() {
       case "myloans": return <MyLoans profile={profile} />
       case "lender": return <LenderManage profile={profile} />
       case "dashboard": return <Dashboard profile={profile} />
-      case "admin": return <AdminView />
+      case "admin": return <AdminView profile={profile} />
     }
   }
 

@@ -53,7 +53,8 @@ def set_category_price(code: str, price: float):
 
 def list_users() -> list[dict]:
     """관리자: 전체 사용자(활성 위주)."""
-    return (client().table("app_users").select("id, name, role, status, org_id, organizations(name)")
+    return (client().table("app_users")
+            .select("id, name, phone, contact_email, role, status, is_sysadmin, org_id, organizations(name)")
             .order("status").execute().data)
 
 
