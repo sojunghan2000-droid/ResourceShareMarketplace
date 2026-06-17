@@ -62,10 +62,12 @@ def list_orgs_public() -> list[dict]:
         return []
 
 
-def sign_up(user_id: str, password: str, name: str, org_id: str, email: str) -> tuple[bool, str]:
-    """ID/PW/이름/소속/이메일로 가입(register_user RPC). 즉시 활성. Knox 이메일 차단."""
+def sign_up(user_id: str, password: str, name: str, org_id: str, email: str,
+            join_code: str) -> tuple[bool, str]:
+    """ID/PW/이름/소속/이메일/협력사코드로 가입(register_user RPC). 즉시 활성."""
     uid = (user_id or "").strip().lower()
     em = (email or "").strip()
+    code = (join_code or "").strip()
     if not ID_RE.match(uid):
         return False, "아이디는 소문자·숫자·_·. 3~30자여야 합니다."
     if len(password or "") < 4:
@@ -78,14 +80,18 @@ def sign_up(user_id: str, password: str, name: str, org_id: str, email: str) -> 
         return False, "올바른 이메일을 입력하세요."
     if KNOX_RE.search(em):
         return False, "Knox(삼성 임직원) 계정은 가입할 수 없습니다. 협력사 이메일로 가입하세요."
+    if not code:
+        return False, "협력사 코드를 입력하세요."
     try:
         _base_client().rpc("register_user", {
             "p_id": uid, "p_pw": password, "p_name": name.strip(),
-            "p_org_id": org_id, "p_email": em}).execute()
+            "p_org_id": org_id, "p_email": em, "p_join_code": code}).execute()
     except Exception as e:
         msg = str(e)
         if "DUP_ID" in msg:
             return False, "이미 사용 중인 아이디입니다."
+        if "BAD_CODE" in msg:
+            return False, "협력사 코드가 올바르지 않습니다. 협력사 관리자에게 문의하세요."
         if "KNOX_BLOCKED" in msg:
             return False, "Knox(삼성 임직원) 계정은 가입할 수 없습니다. 협력사 이메일로 가입하세요."
         if "NO_ORG" in msg:

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import {
   listOrgs, listUsers, adminSetPassword, adminUpdateUser, markOverdue,
-  addOrg, updateOrg, deleteOrg,
+  addOrg, updateOrg, deleteOrg, listOrgCodes, reissueOrgCode,
 } from "@/lib/api"
 import type { Profile } from "@/types"
 import { Card, CardContent } from "@/components/ui/card"
@@ -13,6 +13,7 @@ import { Separator } from "@/components/ui/misc"
 export function AdminView({ profile }: { profile: Profile }) {
   const [orgs, setOrgs] = useState<any[]>([])
   const [users, setUsers] = useState<any[]>([])
+  const [codes, setCodes] = useState<Record<string, string>>({})
   const [newOrg, setNewOrg] = useState("")
   const [editId, setEditId] = useState<string | null>(null)
   const [form, setForm] = useState<any>({})
@@ -22,6 +23,7 @@ export function AdminView({ profile }: { profile: Profile }) {
   async function load() {
     setOrgs(await listOrgs())
     setUsers(await listUsers())
+    setCodes(await listOrgCodes())
   }
   useEffect(() => { load() }, [])
 
@@ -34,8 +36,9 @@ export function AdminView({ profile }: { profile: Profile }) {
       <Card>
         <CardContent className="space-y-3 pt-6">
           <h3 className="font-semibold">협력사 관리</h3>
+          <p className="text-xs text-muted-foreground">가입 코드는 해당 협력사 담당자에게만 공유하세요. 재발급 시 기존 코드는 무효화됩니다.</p>
           {orgs.map((o) => (
-            <div key={o.id} className="flex items-center gap-2 rounded-lg border p-3">
+            <div key={o.id} className="flex flex-wrap items-center gap-2 rounded-lg border p-3">
               {editId === `org-${o.id}` ? (
                 <>
                   <Input className="flex-1" value={form.orgName} onChange={(e) => setForm({ ...form, orgName: e.target.value })} />
@@ -43,7 +46,10 @@ export function AdminView({ profile }: { profile: Profile }) {
                 </>
               ) : (
                 <>
-                  <span className="flex-1 text-sm font-medium">{o.name} <span className="text-xs text-muted-foreground">· {o.type}</span></span>
+                  <span className="flex-1 min-w-40 text-sm font-medium">{o.name} <span className="text-xs text-muted-foreground">· {o.type}</span></span>
+                  <span className="rounded-md bg-accent px-2 py-1 font-mono text-sm font-semibold tracking-widest">{codes[o.id] ?? "----"}</span>
+                  <Button size="sm" variant="outline"
+                    onClick={async () => { const c = await reissueOrgCode(o.id); setCodes((p) => ({ ...p, [o.id]: c })); setMsg(`${o.name} 새 코드: ${c}`) }}>코드 재발급</Button>
                   <Button size="sm" variant="outline" onClick={() => { setEditId(`org-${o.id}`); setForm({ orgName: o.name }) }}>이름 수정</Button>
                   <Button size="sm" variant="outline"
                     onClick={async () => { try { await deleteOrg(o.id); await load() } catch { setMsg("사용자·자재가 연결돼 있어 삭제할 수 없습니다.") } }}>삭제</Button>
@@ -53,7 +59,10 @@ export function AdminView({ profile }: { profile: Profile }) {
           ))}
           <div className="flex gap-2">
             <Input className="flex-1" placeholder="새 협력사명" value={newOrg} onChange={(e) => setNewOrg(e.target.value)} />
-            <Button size="sm" disabled={!newOrg.trim()} onClick={async () => { await addOrg(newOrg); setNewOrg(""); await load() }}>추가</Button>
+            <Button size="sm" disabled={!newOrg.trim()} onClick={async () => {
+              const id = await addOrg(newOrg); const c = await reissueOrgCode(id)
+              setNewOrg(""); setMsg(`추가됨 · 가입 코드 ${c}`); await load()
+            }}>추가</Button>
           </div>
         </CardContent>
       </Card>

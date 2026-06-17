@@ -20,6 +20,7 @@ export function Login() {
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [orgId, setOrgId] = useState("")
+  const [code, setCode] = useState("")
   const [orgs, setOrgs] = useState<{ id: string; name: string }[]>([])
   const [pw, setPw] = useState("")
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
@@ -39,11 +40,12 @@ export function Login() {
       setMsg({ ok: false, text: "Knox(삼성 임직원) 계정은 가입할 수 없습니다. 협력사 이메일로 가입하세요." }); setBusy(false); return
     }
     try {
-      await registerUser(uid, pw, name, orgId, email)
+      await registerUser(uid, pw, name, orgId, email, code)
       setMsg({ ok: true, text: "가입 완료! 바로 로그인하세요." })
     } catch (e: any) {
       const m = String(e?.message || e)
       const text = m.includes("DUP_ID") ? "이미 사용 중인 아이디입니다."
+        : m.includes("BAD_CODE") ? "협력사 코드가 올바르지 않습니다. 협력사 관리자에게 문의하세요."
         : m.includes("KNOX_BLOCKED") ? "Knox(삼성 임직원) 계정은 가입할 수 없습니다. 협력사 이메일로 가입하세요."
         : m.includes("BAD_EMAIL") ? "올바른 이메일을 입력하세요."
         : m.includes("INVALID_ID") ? "아이디는 소문자·숫자·_·. 3~30자여야 합니다."
@@ -84,6 +86,7 @@ export function Login() {
                       {orgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
                     </Select>
                   </Field>
+                  <Field label="협력사 코드"><Input value={code} maxLength={4} onChange={(e) => setCode(e.target.value)} placeholder="협력사 4자리 코드" /></Field>
                 </>
               )}
               <Field label="비밀번호"><Input type="password" value={pw} onChange={(e) => setPw(e.target.value)}

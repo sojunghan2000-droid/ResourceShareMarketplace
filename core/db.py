@@ -63,6 +63,17 @@ def admin_set_password(user_id: str, pw: str):
     client().rpc("admin_set_password", {"p_user": user_id, "p_pw": pw}).execute()
 
 
+def org_codes() -> dict:
+    """관리자: 협력사 가입 코드 {org_id: code}."""
+    rows = client().table("organization_codes").select("org_id, code").execute().data
+    return {r["org_id"]: r["code"] for r in rows}
+
+
+def reissue_org_code(org_id: str) -> str:
+    """관리자: 협력사 코드 랜덤 재발급. 새 코드 반환."""
+    return client().rpc("reissue_org_code", {"p_org": org_id}).execute().data
+
+
 @st.cache_data(ttl=30)
 def list_materials(category: str | None = None, keyword: str | None = None,
                    only_available: bool = False) -> list[dict]:

@@ -360,9 +360,11 @@ def login_view():
                 orgs_pub = auth.list_orgs_public()
                 org_map = {o["name"]: o["id"] for o in orgs_pub}
                 org_sel = st.selectbox("소속 협력사", ["선택"] + list(org_map), key="su_org")
+                code2 = st.text_input("협력사 코드", key="su_code", max_chars=4,
+                                      placeholder="협력사 4자리 코드", help="소속 협력사 관리자에게 받은 코드")
                 pw2 = st.text_input("비밀번호", type="password", key="su_pw")
                 if st.button("가입 신청", type="primary", use_container_width=True):
-                    ok, msg = auth.sign_up(uid2, pw2, name2, org_map.get(org_sel), email2)
+                    ok, msg = auth.sign_up(uid2, pw2, name2, org_map.get(org_sel), email2, code2)
                     (st.success if ok else st.error)(msg)
 
 
@@ -929,20 +931,27 @@ def page_admin(user):
                                   STATUS_TONE.get(l["status"], "muted"), solid=True),
                             unsafe_allow_html=True)
 
-    # ── 5) 협력사 관리 (관리자 CRUD) ───────────────────
+    # ── 5) 협력사 관리 (관리자 CRUD + 가입 코드) ───────
     _section_title("협력사 관리")
+    st.caption("가입 코드는 협력사에 공유하세요. 가입 시 이 코드가 일치해야 합니다.")
+    codes = db.org_codes()
     for o in orgs:
         with st.container(border=True):
-            oc = st.columns([4, 1, 1])
+            oc = st.columns([3, 1.3, 1, 1])
+            code = codes.get(o["id"], "—")
             oc[0].markdown(f"<b>{o['name']}</b> "
-                           f"<span style='color:#64748b;font-size:.8rem'>· {o.get('type','partner')}</span>",
+                           f"<span style='color:#64748b;font-size:.8rem'>· {o.get('type','partner')}</span><br>"
+                           f"<span style='font-size:.8rem'>가입 코드 "
+                           f"<b style='color:#2563eb;letter-spacing:1px'>{code}</b></span>",
                            unsafe_allow_html=True)
-            with oc[1].popover("이름 수정", use_container_width=True):
+            if oc[1].button("코드 재발급", key=f"oc_{o['id']}", use_container_width=True):
+                new = db.reissue_org_code(o["id"]); st.success(f"새 코드: {new}"); st.rerun()
+            with oc[2].popover("이름 수정", use_container_width=True):
                 non = st.text_input("협력사명", value=o["name"], key=f"on_{o['id']}")
                 if st.button("저장", key=f"onb_{o['id']}", type="primary"):
                     db.client().table("organizations").update({"name": non.strip()}).eq("id", o["id"]).execute()
                     st.success("저장됨"); st.rerun()
-            if oc[2].button("삭제", key=f"odel_{o['id']}", use_container_width=True):
+            if oc[3].button("삭제", key=f"odel_{o['id']}", use_container_width=True):
                 try:
                     db.client().table("organizations").delete().eq("id", o["id"]).execute()
                     st.success("삭제됨"); st.rerun()
@@ -954,9 +963,11 @@ def page_admin(user):
                                    label_visibility="collapsed", placeholder="새 협력사명 입력")
         if nc[1].button("추가", key="add_org", type="primary", use_container_width=True):
             if new_org.strip():
-                db.client().table("organizations").insert(
+                res = db.client().table("organizations").insert(
                     {"name": new_org.strip(), "type": "partner"}).execute()
-                st.success("추가됨"); st.rerun()
+                new_id = res.data[0]["id"]
+                code = db.reissue_org_code(new_id)
+                st.success(f"추가됨 · 가입 코드 {code}"); st.rerun()
 
     # ── 6) 사용자 관리 (정보 수정 / 비번 초기화는 시스템 관리자만) ──
     _section_title("사용자 관리")

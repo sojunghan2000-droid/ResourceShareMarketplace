@@ -3,15 +3,15 @@
 web/.env.local
 web/.env
 
-# Python
+# Python (venv 폴더 — 루트에만 한정. web/src/lib 와 충돌 방지 위해 / 앵커)
 __pycache__/
 *.pyc
 .venv/
-venv/
-Include/
-Lib/
-Scripts/
-pyvenv.cfg
+/venv/
+/Include/
+/Lib/
+/Scripts/
+/pyvenv.cfg
 
 # Node / Vite
 node_modules/
