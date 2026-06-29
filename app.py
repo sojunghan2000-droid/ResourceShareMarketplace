@@ -346,9 +346,9 @@ def render_header(user):
     # 고정 글로벌 상단바 (브랜드)
     st.markdown(
         "<div class='ps-topbar'><div class='ps-topbar-brand'>"
-        "<span class='ps-topbar-badge'>⇄</span>"
-        "<span class='ps-topbar-name'>주Go받Go</span>"
-        "<span class='ps-topbar-sub'>협력사 자재 나눔·대여 · 삼성물산</span>"
+        "<span class='ps-topbar-name'>Samsung C&amp;T</span>"
+        "<span style='display:inline-block;width:1px;height:15px;background:#cbd5e1;margin:0 4px'></span>"
+        "<span class='ps-topbar-sub'>용인 덕성 AI DC</span>"
         "</div></div>",
         unsafe_allow_html=True)
     # 우측 액션(알림·도움말·사용자) — 상단바 위 고정 배치
