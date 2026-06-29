@@ -215,7 +215,9 @@ section[data-testid="stSidebar"] .block-container{ padding-top:4.2rem !important
 .st-key-ps_actions [data-testid="stPopover"] button{ border-radius:8px; }
 
 /* ===== 사이드바: 네이티브 collapse 숨김 + mini/번호 메뉴 ===== */
-/* 네이티브 사이드바 collapse 버튼은 유지(숨기지 않음) — 접혀도 다시 열 수 있도록 */
+/* 네이티브 사이드바 collapse/expand 버튼은 유지 + 상단바 위로 올려 클릭 가능하게 */
+[data-testid="stSidebarCollapseButton"], [data-testid="stExpandSidebarButton"],
+[data-testid="collapsedControl"], [data-testid="stSidebarCollapsedControl"]{ z-index:1000000 !important; }
 .ps-sb-toggle button{ width:auto !important; min-width:0 !important; padding:0 12px !important;
   margin-left:auto; display:block; }
 .ps-sb-brand{ }
