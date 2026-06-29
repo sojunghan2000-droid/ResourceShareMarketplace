@@ -241,6 +241,9 @@ section[data-testid="stSidebar"]{ margin-top:64px; }
 body.ps-sidebar-mini section[data-testid="stSidebar"]{ width:80px !important; min-width:80px !important; max-width:80px !important; }
 body.ps-sidebar-mini section[data-testid="stSidebar"] .block-container{ padding-left:.4rem !important; padding-right:.4rem !important; }
 body.ps-sidebar-mini section[data-testid="stSidebar"] button > div{ justify-content:center !important; }
+/* mini: nav 버튼 라벨 숨김(아이콘만) — 토글(«/»)은 유지 */
+body.ps-sidebar-mini [class*="st-key-nav_"] button p,
+body.ps-sidebar-mini [class*="st-key-nav_"] button [data-testid="stMarkdownContainer"]{ display:none !important; }
 body.ps-sidebar-mini .ps-sb-brand, body.ps-sidebar-mini .ps-sb-sub{ visibility:hidden !important; white-space:nowrap !important; overflow:hidden !important; }
 body.ps-sidebar-mini .ps-sb-foot{ display:none !important; }
 body.ps-sidebar-mini .st-key-sb_toggle button > div{ justify-content:center !important; }
@@ -1337,9 +1340,19 @@ def main():
     user = auth.current_user()
     render_header(user)
     # 자재 등록은 헤더의 '+ 자재 등록' CTA 로 진입 → 사이드바 nav 에서는 제외(중복 제거)
-    # 번호형 메뉴 (PyroSafe식). 자재 등록도 사이드바로.
-    nav_pages = ["대시보드", "자재 목록", "구해요", "공유 현황", "내 신청함", "내 자재 관리", "자재 등록"]
-    valid_pages = {*nav_pages, "관리자"}
+    # 아이콘 메뉴(이전 내용). 자재 등록도 사이드바로. 구조는 PyroSafe(토글·브랜드·푸터) 유지.
+    nav_items = [
+        ("대시보드", ":material/bar_chart:"),
+        ("자재 목록", ":material/grid_view:"),
+        ("구해요", ":material/campaign:"),
+        ("공유 현황", ":material/groups:"),
+        ("내 신청함", ":material/inbox:"),
+        ("내 자재 관리", ":material/inventory_2:"),
+        ("자재 등록", ":material/add:"),
+    ]
+    if auth.is_admin():
+        nav_items.append(("관리자", ":material/settings:"))
+    valid_pages = {label for label, _ in nav_items}
     choice = st.session_state.get("nav", "대시보드")
     if choice not in valid_pages:
         choice = "대시보드"
@@ -1362,20 +1375,12 @@ def main():
             "<div class='ps-sb-sub' style='color:#64748b;font-size:.82rem;margin:2px 0 18px'>"
             "협력사 자재 나눔·대여</div>",
             unsafe_allow_html=True)
-        # 번호형 메뉴
-        for idx, label in enumerate(nav_pages, start=1):
-            blabel = f"{idx}" if mini else f"{idx}. {label}"
-            if st.button(blabel, key=f"nav_{label}",
+        # 아이콘 메뉴 — mini면 라벨은 CSS로 숨겨 아이콘만 표시
+        for label, icon in nav_items:
+            if st.button(label, icon=icon, key=f"nav_{label}",
                          type="primary" if label == choice else "secondary",
                          use_container_width=True):
                 st.session_state["nav"] = label
-                st.rerun()
-        # 관리자
-        if auth.is_admin():
-            if st.button("A" if mini else "A. 관리자", key="nav_관리자",
-                         type="primary" if choice == "관리자" else "secondary",
-                         use_container_width=True):
-                st.session_state["nav"] = "관리자"
                 st.rerun()
         # 푸터
         st.markdown("<div class='ps-sb-foot'>Samsung C&amp;T · 용인 덕성 AI DC<br>v1.0 · 2026-06-30</div>",
