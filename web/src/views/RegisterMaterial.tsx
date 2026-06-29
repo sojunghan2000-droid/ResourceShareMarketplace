@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { listCategories, createMaterial, uploadProof } from "@/lib/api"
-import type { Category, Profile, InspectionStatus } from "@/types"
+import type { Category, Profile, InspectionStatus, DealType } from "@/types"
 import { INSPECTION_KR } from "@/types"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -19,6 +19,8 @@ export function RegisterMaterial({ profile }: { profile: Profile }) {
   const [location, setLocation] = useState("")
   const [insp, setInsp] = useState<InspectionStatus>("good")
   const [expires, setExpires] = useState("")
+  const [deal, setDeal] = useState<DealType>("give")
+  const [deadline, setDeadline] = useState("")
   const [files, setFiles] = useState<File[]>([])
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
@@ -37,9 +39,10 @@ export function RegisterMaterial({ profile }: { profile: Profile }) {
         org_id: profile.org_id, owner_user_id: profile.id, category, name, spec,
         unit, qty_total: qty, qty_available: qty, location, photos,
         inspection_status: insp, expires_at: expires || null,
+        deal_type: deal, deadline: deal === "give" ? (deadline || null) : null,
       })
       setMsg({ ok: true, text: "자재가 등록되었습니다." })
-      setName(""); setSpec(""); setQty(1); setLocation(""); setFiles([]); setExpires("")
+      setName(""); setSpec(""); setQty(1); setLocation(""); setFiles([]); setExpires(""); setDeadline("")
     } catch (e: any) { setMsg({ ok: false, text: e.message || "등록 실패" }) } finally { setBusy(false) }
   }
 
@@ -51,6 +54,14 @@ export function RegisterMaterial({ profile }: { profile: Profile }) {
       </div>
       <Card>
         <CardContent className="space-y-4 pt-6">
+          <Field label="거래 유형" required>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setDeal("give")}
+                className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium ${deal==="give" ? "border-give bg-give text-give-foreground" : "border-border bg-card"}`}>나눔(무상 양도)</button>
+              <button type="button" onClick={() => setDeal("loan")}
+                className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium ${deal==="loan" ? "border-loan bg-loan text-loan-foreground" : "border-border bg-card"}`}>대여(반납)</button>
+            </div>
+          </Field>
           <Field label="카테고리">
             <Select value={category} onChange={(e) => setCategory(e.target.value)}>
               {cats.map((c) => <option key={c.code} value={c.code}>{c.major}</option>)}
@@ -70,6 +81,9 @@ export function RegisterMaterial({ profile }: { profile: Profile }) {
               </Select>
             </Field>
             <Field label="사용기한 (없으면 비움)"><Input type="date" value={expires} onChange={(e) => setExpires(e.target.value)} /></Field>
+            {deal === "give" && (
+              <Field label="나눔 마감기한 (선택)"><Input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} /></Field>
+            )}
           </div>
           <Field label="사진">
             <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-input bg-card px-3 py-1.5 text-sm shadow-sm hover:bg-accent">

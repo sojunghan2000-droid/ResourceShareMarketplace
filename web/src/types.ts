@@ -1,6 +1,9 @@
 export type LoanStatus =
   | "REQUESTED" | "APPROVED" | "ON_LOAN"
-  | "RETURN_PENDING" | "RETURNED" | "REJECTED" | "OVERDUE"
+  | "RETURN_PENDING" | "RETURNED" | "REJECTED" | "OVERDUE" | "COMPLETED"
+
+export type DealType = "give" | "loan"
+export const DEAL_KR: Record<DealType, string> = { give: "나눔", loan: "대여" }
 
 export type InspectionStatus = "good" | "need_check" | "no_use" | "damaged"
 
@@ -32,6 +35,8 @@ export interface Material {
   photos: string[]
   inspection_status: InspectionStatus
   expires_at: string | null
+  deal_type: DealType
+  deadline: string | null
   status: string
   created_at: string
 }
@@ -45,7 +50,8 @@ export interface Loan {
   qty: number
   purpose: string | null
   pickup_date: string | null
-  due_date: string
+  due_date: string | null
+  deal_type: DealType
   status: LoanStatus
   reject_reason: string | null
   return_qty: number | null
@@ -55,10 +61,41 @@ export interface Loan {
 }
 
 export const STATUS_KR: Record<LoanStatus, string> = {
-  REQUESTED: "신청대기", APPROVED: "대여승인", ON_LOAN: "대여중",
+  REQUESTED: "신청대기", APPROVED: "승인", ON_LOAN: "대여중",
   RETURN_PENDING: "반납확인대기", RETURNED: "반납완료", REJECTED: "거절됨", OVERDUE: "연체",
+  COMPLETED: "수령완료",
 }
 
 export const INSPECTION_KR: Record<InspectionStatus, string> = {
   good: "양호", need_check: "점검필요", no_use: "사용금지", damaged: "파손",
+}
+
+export interface MaterialRequest {
+  id: string
+  requester_org: string
+  requester_user_id: string
+  category: string
+  major: string | null
+  title: string
+  qty: number
+  needed_by: string | null
+  location: string | null
+  reason: string | null
+  status: "open" | "fulfilled" | "closed"
+  created_at: string
+  proposal_count: number
+  is_mine: boolean
+}
+
+export interface RequestProposal {
+  id: string
+  proposer_org: string
+  material_id: string
+  material_name: string
+  material_spec: string | null
+  deal_type: DealType
+  message: string | null
+  status: "proposed" | "accepted" | "rejected" | "withdrawn"
+  created_at: string
+  qty_available: number
 }

@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react"
 import {
-  listOrgs, listUsers, adminSetPassword, adminUpdateUser, markOverdue,
-  addOrg, updateOrg, deleteOrg, listOrgCodes, reissueOrgCode,
+  listOrgs, listUsers, adminSetPassword, adminUpdateUser, markOverdue, markExpiredGives,
+  addOrg, updateOrg, deleteOrg, getSignupRequiresApproval, setSignupRequiresApproval,
+  listCategoryPrice, setCategoryPrice, type CategoryPrice,
 } from "@/lib/api"
 import type { Profile } from "@/types"
 import { Card, CardContent } from "@/components/ui/card"
@@ -13,7 +14,8 @@ import { Separator } from "@/components/ui/misc"
 export function AdminView({ profile }: { profile: Profile }) {
   const [orgs, setOrgs] = useState<any[]>([])
   const [users, setUsers] = useState<any[]>([])
-  const [codes, setCodes] = useState<Record<string, string>>({})
+  const [requireApproval, setRequireApproval] = useState(false)
+  const [prices, setPrices] = useState<CategoryPrice[]>([])
   const [newOrg, setNewOrg] = useState("")
   const [editId, setEditId] = useState<string | null>(null)
   const [form, setForm] = useState<any>({})
@@ -23,7 +25,8 @@ export function AdminView({ profile }: { profile: Profile }) {
   async function load() {
     setOrgs(await listOrgs())
     setUsers(await listUsers())
-    setCodes(await listOrgCodes())
+    setRequireApproval(await getSignupRequiresApproval())
+    setPrices(await listCategoryPrice())
   }
   useEffect(() => { load() }, [])
 
@@ -36,7 +39,7 @@ export function AdminView({ profile }: { profile: Profile }) {
       <Card>
         <CardContent className="space-y-3 pt-6">
           <h3 className="font-semibold">협력사 관리</h3>
-          <p className="text-xs text-muted-foreground">가입 코드는 해당 협력사 담당자에게만 공유하세요. 재발급 시 기존 코드는 무효화됩니다.</p>
+          <p className="text-xs text-muted-foreground">협력사를 추가·수정·삭제합니다.</p>
           {orgs.map((o) => (
             <div key={o.id} className="flex flex-wrap items-center gap-2 rounded-lg border p-3">
               {editId === `org-${o.id}` ? (
@@ -47,9 +50,6 @@ export function AdminView({ profile }: { profile: Profile }) {
               ) : (
                 <>
                   <span className="flex-1 min-w-40 text-sm font-medium">{o.name} <span className="text-xs text-muted-foreground">· {o.type}</span></span>
-                  <span className="rounded-md bg-accent px-2 py-1 font-mono text-sm font-semibold tracking-widest">{codes[o.id] ?? "----"}</span>
-                  <Button size="sm" variant="outline"
-                    onClick={async () => { const c = await reissueOrgCode(o.id); setCodes((p) => ({ ...p, [o.id]: c })); setMsg(`${o.name} 새 코드: ${c}`) }}>코드 재발급</Button>
                   <Button size="sm" variant="outline" onClick={() => { setEditId(`org-${o.id}`); setForm({ orgName: o.name }) }}>이름 수정</Button>
                   <Button size="sm" variant="outline"
                     onClick={async () => { try { await deleteOrg(o.id); await load() } catch { setMsg("사용자·자재가 연결돼 있어 삭제할 수 없습니다.") } }}>삭제</Button>
@@ -60,8 +60,8 @@ export function AdminView({ profile }: { profile: Profile }) {
           <div className="flex gap-2">
             <Input className="flex-1" placeholder="새 협력사명" value={newOrg} onChange={(e) => setNewOrg(e.target.value)} />
             <Button size="sm" disabled={!newOrg.trim()} onClick={async () => {
-              const id = await addOrg(newOrg); const c = await reissueOrgCode(id)
-              setNewOrg(""); setMsg(`추가됨 · 가입 코드 ${c}`); await load()
+              await addOrg(newOrg)
+              setNewOrg(""); setMsg("협력사가 추가되었습니다."); await load()
             }}>추가</Button>
           </div>
         </CardContent>
@@ -115,12 +115,50 @@ export function AdminView({ profile }: { profile: Profile }) {
         </CardContent>
       </Card>
 
+      {/* 카테고리 단가·탄소 */}
+      <Card>
+        <CardContent className="space-y-3 pt-6">
+          <h3 className="font-semibold">카테고리 단가·탄소 원단위</h3>
+          <p className="text-xs text-muted-foreground">표준단가는 구매비 절감액, 탄소 원단위(kgCO₂e/단위)는 CO₂ 저감 계산에 쓰입니다.</p>
+          <div className="overflow-hidden rounded-lg border">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 text-muted-foreground">
+                <tr><th className="px-3 py-2 text-left">카테고리</th><th className="px-3 py-2 text-left">표준단가(원)</th><th className="px-3 py-2 text-left">CO₂(kg/단위)</th><th className="px-3 py-2"></th></tr>
+              </thead>
+              <tbody>
+                {prices.map((p, i) => (
+                  <tr key={p.code} className="border-t">
+                    <td className="px-3 py-2 font-medium">{p.major}</td>
+                    <td className="px-3 py-2"><Input type="number" min={0} value={p.unit_price}
+                      onChange={(e) => setPrices((arr) => arr.map((x, j) => j === i ? { ...x, unit_price: Math.max(0, +e.target.value) } : x))} /></td>
+                    <td className="px-3 py-2"><Input type="number" min={0} step="0.01" value={p.co2_per_unit}
+                      onChange={(e) => setPrices((arr) => arr.map((x, j) => j === i ? { ...x, co2_per_unit: Math.max(0, +e.target.value) } : x))} /></td>
+                    <td className="px-3 py-2"><Button size="sm" variant="outline"
+                      onClick={async () => { await setCategoryPrice(p.code, p.unit_price, p.co2_per_unit); setMsg(`${p.major} 단가·탄소 저장됨`) }}>저장</Button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* 운영 */}
       <Card>
         <CardContent className="space-y-3 pt-6">
           <h3 className="font-semibold">운영</h3>
           <Separator />
+          <label className="flex items-center justify-between gap-3 rounded-lg border p-3">
+            <span>
+              <span className="text-sm font-medium">가입 승인 필요</span>
+              <span className="block text-xs text-muted-foreground">켜면 신규 가입이 '승인 대기'로 생성됩니다. (기본: 꺼짐 = 즉시 이용)</span>
+            </span>
+            <input type="checkbox" className="size-5 accent-primary" checked={requireApproval}
+              onChange={async (e) => { const v = e.target.checked; setRequireApproval(v); await setSignupRequiresApproval(v); setMsg(`가입 승인 필요: ${v ? "켜짐" : "꺼짐"}`) }} />
+          </label>
+          <Separator />
           <Button variant="outline" onClick={async () => { const n = await markOverdue(); setMsg(`연체 처리: ${n}건`) }}>연체 자재 일괄 갱신</Button>
+          <Button variant="outline" onClick={async () => { const n = await markExpiredGives(); setMsg(`마감 나눔 비공개: ${n}건`) }}>나눔 마감 일괄 비공개</Button>
           {msg && <p className="text-sm text-success">{msg}</p>}
         </CardContent>
       </Card>

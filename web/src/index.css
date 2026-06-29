@@ -26,6 +26,10 @@
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
+    --give: 142 71% 40%;            /* #16A34A 나눔·탄소 */
+    --give-foreground: 0 0% 100%;
+    --loan: 21 90% 48%;             /* #EA580C 대여 */
+    --loan-foreground: 0 0% 100%;
     --border: 214 32% 91%;
     --input: 214 32% 91%;
     --ring: 221 83% 53%;
@@ -35,8 +39,10 @@
 
 @layer base {
   * { @apply border-border; }
+  html { font-size: 16px; }
+  @media (max-width: 640px) { html { font-size: 17px; } }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground text-base;
     font-feature-settings: "rlig" 1, "calt" 1;
     -webkit-font-smoothing: antialiased;
   }

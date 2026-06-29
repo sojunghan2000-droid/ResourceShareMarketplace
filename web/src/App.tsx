@@ -6,26 +6,26 @@ import type { Profile } from "@/types"
 import { Login } from "@/views/Login"
 import { Catalog } from "@/views/Catalog"
 import { RegisterMaterial } from "@/views/RegisterMaterial"
-import { MyLoans } from "@/views/MyLoans"
-import { LenderManage } from "@/views/LenderManage"
+import { MyDeals } from "@/views/MyDeals"
 import { Dashboard } from "@/views/Dashboard"
 import { ShareView } from "@/views/ShareView"
 import { AdminView } from "@/views/AdminView"
+import { RequestBoard } from "@/views/RequestBoard"
 import { Button } from "@/components/ui/button"
 import { Header } from "@/components/Header"
 import {
-  ShieldCheck, LayoutGrid, PlusSquare, Inbox, PackageCheck, BarChart3, Settings, Users,
+  ShieldCheck, LayoutGrid, PlusSquare, Inbox, BarChart3, Settings, Users, Megaphone,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-type NavKey = "catalog" | "share" | "register" | "myloans" | "lender" | "dashboard" | "admin"
+type NavKey = "catalog" | "share" | "register" | "deals" | "dashboard" | "admin" | "requests"
 // '자재 등록'은 헤더의 '+ 자재 등록' CTA 로 진입 → 사이드바 nav 에서는 제외(중복 제거)
 const NAV: { key: NavKey; label: string; icon: React.ReactNode; admin?: boolean }[] = [
   { key: "dashboard", label: "대시보드", icon: <BarChart3 className="size-4" /> },
   { key: "catalog", label: "자재 목록", icon: <LayoutGrid className="size-4" /> },
+  { key: "requests", label: "구해요", icon: <Megaphone className="size-4" /> },
   { key: "share", label: "공유 현황", icon: <Users className="size-4" /> },
-  { key: "myloans", label: "내 신청함", icon: <Inbox className="size-4" /> },
-  { key: "lender", label: "내 자재 관리", icon: <PackageCheck className="size-4" /> },
+  { key: "deals", label: "내 거래", icon: <Inbox className="size-4" /> },
   { key: "admin", label: "관리자", icon: <Settings className="size-4" />, admin: true },
 ]
 
@@ -34,6 +34,7 @@ export default function App() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const [nav, setNav] = useState<NavKey>("dashboard")
+  const [dealsTab, setDealsTab] = useState<"received" | "given">("received")
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
@@ -69,10 +70,10 @@ export default function App() {
       case "catalog": return <Catalog profile={profile} />
       case "share": return <ShareView profile={profile} />
       case "register": return <RegisterMaterial profile={profile} />
-      case "myloans": return <MyLoans profile={profile} />
-      case "lender": return <LenderManage profile={profile} />
-      case "dashboard": return <Dashboard profile={profile} />
+      case "deals": return <MyDeals profile={profile} initialTab={dealsTab} />
+      case "dashboard": return <Dashboard profile={profile} onNavigate={((k: string, t?: string) => { if (t) setDealsTab(t as "received"|"given"); setNav(k as NavKey) }) as (k: string) => void} />
       case "admin": return <AdminView profile={profile} />
+      case "requests": return <RequestBoard profile={profile} />
     }
   }
 
@@ -80,7 +81,7 @@ export default function App() {
     <div className="flex min-h-screen flex-col bg-background">
       <Header profile={profile} onNavigate={(k) => setNav(k as NavKey)} />
       <div className="flex flex-1">
-        <aside className="sticky top-14 h-[calc(100vh-3.5rem)] w-56 shrink-0 border-r bg-card">
+        <aside className="sticky top-14 hidden h-[calc(100vh-3.5rem)] w-56 shrink-0 border-r bg-card md:block">
           <nav className="space-y-1 p-3">
             {items.map((n) => (
               <button key={n.key} onClick={() => setNav(n.key)}
@@ -91,10 +92,20 @@ export default function App() {
             ))}
           </nav>
         </aside>
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 overflow-auto pb-20 md:pb-0">
           <div className="mx-auto max-w-5xl px-6 py-8">{View()}</div>
         </main>
       </div>
+      {/* 모바일 하단 탭바 */}
+      <nav className="fixed inset-x-0 bottom-0 z-30 flex border-t bg-card md:hidden">
+        {items.map((n) => (
+          <button key={n.key} onClick={() => setNav(n.key)}
+            className={cn("flex min-h-[56px] flex-1 flex-col items-center justify-center gap-0.5 px-1 py-2 text-[11px] font-medium",
+              nav === n.key ? "text-primary" : "text-muted-foreground")}>
+            {n.icon}{n.label}
+          </button>
+        ))}
+      </nav>
     </div>
   )
 }

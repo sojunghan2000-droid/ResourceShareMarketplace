@@ -40,6 +40,7 @@ export function ShareView({ profile: _profile }: { profile: Profile }) {
                   <th className="px-3 py-2 text-left">대여 제공</th>
                   <th className="px-3 py-2 text-left">대여 사용</th>
                   <th className="px-3 py-2 text-left">연체</th>
+                  <th className="px-3 py-2 text-left">CO₂ 저감</th>
                 </tr>
               </thead>
               <tbody>
@@ -54,6 +55,7 @@ export function ShareView({ profile: _profile }: { profile: Profile }) {
                         ? <span className="text-success">✓</span>
                         : <span className="font-semibold text-destructive">{s.overdue_count}건</span>}
                     </td>
+                    <td className="px-3 py-2 text-give tabular-nums">{Math.round(s.co2_avoided).toLocaleString()}kg</td>
                   </tr>
                 ))}
               </tbody>

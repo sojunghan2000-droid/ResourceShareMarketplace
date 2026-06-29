@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react"
-import { ShieldCheck } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { registerUser, listOrgsPublic } from "@/lib/api"
 import { Button } from "@/components/ui/button"
@@ -20,7 +19,6 @@ export function Login() {
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [orgId, setOrgId] = useState("")
-  const [code, setCode] = useState("")
   const [orgs, setOrgs] = useState<{ id: string; name: string }[]>([])
   const [pw, setPw] = useState("")
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
@@ -40,12 +38,11 @@ export function Login() {
       setMsg({ ok: false, text: "Knox(삼성 임직원) 계정은 가입할 수 없습니다. 협력사 이메일로 가입하세요." }); setBusy(false); return
     }
     try {
-      await registerUser(uid, pw, name, orgId, email, code)
+      await registerUser(uid, pw, name, orgId, email)
       setMsg({ ok: true, text: "가입 완료! 바로 로그인하세요." })
     } catch (e: any) {
       const m = String(e?.message || e)
       const text = m.includes("DUP_ID") ? "이미 사용 중인 아이디입니다."
-        : m.includes("BAD_CODE") ? "협력사 코드가 올바르지 않습니다. 협력사 관리자에게 문의하세요."
         : m.includes("KNOX_BLOCKED") ? "Knox(삼성 임직원) 계정은 가입할 수 없습니다. 협력사 이메일로 가입하세요."
         : m.includes("BAD_EMAIL") ? "올바른 이메일을 입력하세요."
         : m.includes("INVALID_ID") ? "아이디는 소문자·숫자·_·. 3~30자여야 합니다."
@@ -62,11 +59,11 @@ export function Login() {
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-background to-accent/40 p-4">
       <div className="w-full max-w-sm">
         <div className="mb-6 flex flex-col items-center text-center">
-          <div className="mb-3 flex size-12 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
-            <ShieldCheck className="size-6" />
+          <div className="mb-3 flex size-12 items-center justify-center rounded-xl bg-primary text-2xl font-bold text-primary-foreground shadow-sm">
+            ⇄
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">SafeShare</h1>
-          <p className="mt-1 text-sm text-muted-foreground">협력사 간 잉여 안전자재 무상 대여 플랫폼</p>
+          <h1 className="text-2xl font-bold tracking-tight">주Go받Go앱</h1>
+          <p className="mt-1 text-sm text-muted-foreground">협력사 간 잉여 안전자재 나눔·대여 플랫폼</p>
         </div>
         <Card>
           <CardContent className="pt-6">
@@ -86,7 +83,6 @@ export function Login() {
                       {orgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
                     </Select>
                   </Field>
-                  <Field label="협력사 코드"><Input value={code} maxLength={4} onChange={(e) => setCode(e.target.value)} placeholder="협력사 4자리 코드" /></Field>
                 </>
               )}
               <Field label="비밀번호"><Input type="password" value={pw} onChange={(e) => setPw(e.target.value)}

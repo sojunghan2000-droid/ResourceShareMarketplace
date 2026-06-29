@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge"
 import { STATUS_KR, type LoanStatus } from "@/types"
 
-const VARIANT: Record<LoanStatus, "default" | "secondary" | "success" | "warning" | "destructive" | "muted"> = {
+const VARIANT: Record<LoanStatus, "default" | "secondary" | "success" | "warning" | "destructive" | "muted" | "give"> = {
   REQUESTED: "warning",
   APPROVED: "default",
   ON_LOAN: "secondary",
@@ -9,6 +9,7 @@ const VARIANT: Record<LoanStatus, "default" | "secondary" | "success" | "warning
   RETURNED: "success",
   REJECTED: "muted",
   OVERDUE: "destructive",
+  COMPLETED: "give",
 }
 
 export function StatusBadge({ status }: { status: LoanStatus }) {

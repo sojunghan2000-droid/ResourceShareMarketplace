@@ -1,5 +1,5 @@
 import { supabase } from "./supabase"
-import type { Category, Loan, Material, Profile } from "@/types"
+import type { Category, Loan, Material, MaterialRequest, Profile, RequestProposal } from "@/types"
 
 export async function getProfile(userId: string): Promise<Profile | null> {
   const { data } = await supabase
@@ -26,7 +26,9 @@ export async function listMaterials(opts: {
   if (opts.keyword) {
     const k = opts.keyword.toLowerCase()
     rows = rows.filter(
-      (r) => (r.name ?? "").toLowerCase().includes(k) || (r.spec ?? "").toLowerCase().includes(k)
+      (r) => (r.name ?? "").toLowerCase().includes(k)
+        || (r.spec ?? "").toLowerCase().includes(k)
+        || (r.location ?? "").toLowerCase().includes(k)
     )
   }
   return rows
@@ -66,6 +68,7 @@ export async function listAllLoans(): Promise<Loan[]> {
 export interface OrgStat {
   org_id: string; org_name: string
   materials_count: number; provided_count: number; used_count: number; overdue_count: number
+  co2_avoided: number
 }
 export interface LoanFeedItem {
   material_name: string; qty: number; unit: string | null
@@ -92,7 +95,7 @@ async function rpc(name: string, params: Record<string, unknown>) {
   return data
 }
 
-export const requestLoan = (materialId: string, qty: number, due: string, purpose: string, pickup: string | null) =>
+export const requestLoan = (materialId: string, qty: number, due: string | null, purpose: string, pickup: string | null) =>
   rpc("request_loan", { p_material_id: materialId, p_qty: qty, p_due: due, p_purpose: purpose, p_pickup: pickup })
 
 export const approveLoan = (loanId: string) => rpc("approve_loan", { p_loan_id: loanId })
@@ -100,9 +103,12 @@ export const rejectLoan = (loanId: string, reason: string) => rpc("reject_loan",
 export const pickupLoan = (loanId: string, photos: string[], signUrl: string) =>
   rpc("pickup_loan", { p_loan_id: loanId, p_photos: photos, p_sign_url: signUrl })
 export const requestReturn = (loanId: string) => rpc("request_return", { p_loan_id: loanId })
+export const completeGive = (loanId: string, photos: string[], signUrl: string) =>
+  rpc("complete_give", { p_loan_id: loanId, p_photos: photos, p_sign_url: signUrl })
 export const returnLoan = (loanId: string, returnQty: number, photos: string[], signUrl: string, condition: string, note: string) =>
   rpc("return_loan", { p_loan_id: loanId, p_return_qty: returnQty, p_photos: photos, p_sign_url: signUrl, p_condition: condition, p_note: note })
 export const markOverdue = () => rpc("mark_overdue_loans", {})
+export const markExpiredGives = () => rpc("mark_expired_gives", {})
 
 export async function createMaterial(input: Record<string, unknown>) {
   const { error } = await supabase.from("materials").insert(input)
@@ -147,10 +153,10 @@ export async function listOrgsPublic(): Promise<{ id: string; name: string }[]> 
   return (data ?? []) as { id: string; name: string }[]
 }
 
-export async function registerUser(id: string, pw: string, name: string, orgId: string, email: string, joinCode: string) {
+export async function registerUser(id: string, pw: string, name: string, orgId: string, email: string) {
   const { error } = await supabase.rpc("register_user", {
     p_id: id.trim().toLowerCase(), p_pw: pw, p_name: name.trim(),
-    p_org_id: orgId, p_email: email.trim(), p_join_code: joinCode.trim(),
+    p_org_id: orgId, p_email: email.trim(),
   })
   if (error) throw new Error(error.message)
 }
@@ -211,6 +217,62 @@ export async function adminSetPassword(userId: string, pw: string) {
   const { error } = await supabase.rpc("admin_set_password", { p_user: userId, p_pw: pw })
   if (error) throw new Error(error.message)
 }
+
+// ---- 임팩트(절감·탄소) ----
+export interface ImpactSummary {
+  reuse_count: number; saved_amount: number; co2_avoided: number
+  q_reuse_count: number; q_saved_amount: number; q_co2_avoided: number
+}
+export async function getImpactSummary(): Promise<ImpactSummary> {
+  const { data } = await supabase.rpc("impact_summary")
+  const r = (Array.isArray(data) ? data[0] : data) as ImpactSummary | undefined
+  return r ?? { reuse_count: 0, saved_amount: 0, co2_avoided: 0, q_reuse_count: 0, q_saved_amount: 0, q_co2_avoided: 0 }
+}
+
+// ---- 카테고리 단가·탄소 (관리자) ----
+export interface CategoryPrice { code: string; major: string; unit_price: number; co2_per_unit: number }
+export async function listCategoryPrice(): Promise<CategoryPrice[]> {
+  const { data } = await supabase.rpc("list_category_price")
+  return (data ?? []) as CategoryPrice[]
+}
+export async function setCategoryPrice(code: string, unitPrice: number, co2: number) {
+  const { error } = await supabase.rpc("set_category_price", { p_code: code, p_unit_price: unitPrice, p_co2: co2 })
+  if (error) throw new Error(error.message)
+}
+
+// ---- 앱 설정 ----
+export async function getSignupRequiresApproval(): Promise<boolean> {
+  const { data } = await supabase.from("app_settings").select("value").eq("key", "signup_requires_approval").maybeSingle()
+  return (data?.value as boolean | undefined) ?? false
+}
+export async function setSignupRequiresApproval(v: boolean) {
+  const { error } = await supabase.from("app_settings")
+    .upsert({ key: "signup_requires_approval", value: v, updated_at: new Date().toISOString() })
+  if (error) throw new Error(error.message)
+}
+
+// ---- 구해요(material_requests) ----
+export async function listMaterialRequests(): Promise<MaterialRequest[]> {
+  const { data } = await supabase.rpc("list_material_requests")
+  return (data ?? []) as MaterialRequest[]
+}
+export async function createMaterialRequest(
+  category: string, title: string, qty: number, neededBy: string | null, location: string, reason: string) {
+  const { error } = await supabase.rpc("create_material_request", {
+    p_category: category, p_title: title.trim(), p_qty: qty,
+    p_needed_by: neededBy, p_location: location, p_reason: reason,
+  })
+  if (error) throw new Error(error.message)
+}
+export async function listProposalsForRequest(requestId: string): Promise<RequestProposal[]> {
+  const { data } = await supabase.rpc("list_proposals_for_request", { p_request_id: requestId })
+  return (data ?? []) as RequestProposal[]
+}
+export const proposeToRequest = (requestId: string, materialId: string, message: string) =>
+  rpc("propose_to_request", { p_request_id: requestId, p_material_id: materialId, p_message: message })
+export const acceptProposal = (proposalId: string) => rpc("accept_proposal", { p_proposal_id: proposalId })
+export const closeMaterialRequest = (requestId: string) => rpc("close_material_request", { p_request_id: requestId })
+export const withdrawProposal = (proposalId: string) => rpc("withdraw_proposal", { p_proposal_id: proposalId })
 
 // ---- 알림 ----
 export interface Notification {
