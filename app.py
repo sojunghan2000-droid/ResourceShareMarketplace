@@ -11,8 +11,17 @@ from datetime import date, timedelta
 import altair as alt
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 
 from core import auth, db
+
+
+def _toggle_body_class(class_name: str, on: bool) -> None:
+    """parent document body에 클래스 추가/제거(st.markdown은 script strip → iframe 사용)."""
+    op = "add" if on else "remove"
+    components.html(
+        f"<script>window.parent.document.body.classList.{op}('{class_name}');</script>",
+        height=0, width=0)
 
 st.set_page_config(page_title="주Go받Go앱", page_icon="⇄", layout="wide")
 
@@ -185,6 +194,37 @@ h2{ font-size:1.6rem; }
 [data-testid="stColumn"] [data-testid="stVerticalBlockBorderWrapper"]{ padding:0 0 12px; }
 [data-testid="stColumn"] [data-testid="stVerticalBlockBorderWrapper"] .ss-pad{ padding:0 14px; }
 [data-testid="stColumn"] [data-testid="stVerticalBlockBorderWrapper"] .stButton{ padding:0 14px; }
+
+/* ===== PyroSafe식 글로벌 고정 상단바 ===== */
+header[data-testid="stHeader"]{ display:none !important; }
+.ps-topbar{
+  position:fixed; top:0; left:0; right:0; height:56px; z-index:9000;
+  background:var(--ss-card); border-bottom:1px solid var(--ss-border);
+  display:flex; align-items:center; padding:0 1.25rem;
+}
+.ps-topbar-brand{ display:flex; align-items:center; gap:9px; }
+.ps-topbar-badge{ width:30px; height:30px; border-radius:8px; background:#1e293b; color:#fff;
+  display:flex; align-items:center; justify-content:center; font-size:17px; font-weight:800; }
+.ps-topbar-name{ font-weight:800; font-size:15px; color:var(--ss-fg); }
+.ps-topbar-sub{ color:var(--ss-muted); font-size:12px; margin-left:2px; }
+/* 본문/사이드바를 상단바 아래로 */
+.block-container{ padding-top:4.6rem !important; }
+section[data-testid="stSidebar"] .block-container{ padding-top:4.2rem !important; }
+/* 우측 액션 — 상단바 위에 고정 배치(가로) */
+.st-key-ps_actions{ position:fixed; top:8px; right:0.75rem; width:360px; z-index:9100; }
+.st-key-ps_actions [data-testid="stPopover"] button{ border-radius:8px; }
+
+/* ===== 사이드바: 네이티브 collapse 숨김 + mini/번호 메뉴 ===== */
+section[data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"]{ display:none !important; }
+.ps-sb-toggle button{ width:auto !important; min-width:0 !important; padding:0 12px !important;
+  margin-left:auto; display:block; }
+.ps-sb-brand{ }
+.ps-sb-foot{ color:var(--ss-muted); font-size:11px; line-height:1.6; padding:14px 4px 4px; }
+/* mini 모드 */
+body.ps-sidebar-mini section[data-testid="stSidebar"]{ width:84px !important; min-width:84px !important; }
+body.ps-sidebar-mini .ps-sb-brand, body.ps-sidebar-mini .ps-sb-sub,
+body.ps-sidebar-mini .ps-sb-foot{ visibility:hidden; }
+body.ps-sidebar-mini section[data-testid="stSidebar"] button > div{ justify-content:center; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -300,25 +340,24 @@ def _notif_panel(notifs, unread):
 def render_header(user):
     notifs = db.list_notifications()
     unread = sum(1 for n in notifs if not n.get("read_at"))
-    with st.container(key="appheader"):
-        c = st.columns([6, 1.6, 1.0, 0.8, 2])
-        c[0].markdown(
-            "<div style='display:flex;align-items:center;gap:10px;padding-top:8px'>"
-            "<span style='font-weight:800;font-size:16px;color:#1e293b;letter-spacing:-.01em'>Samsung C&amp;T</span>"
-            "<span style='display:inline-block;width:1px;height:15px;background:#cbd5e1'></span>"
-            "<span style='color:#64748b;font-size:12px'>용인 덕성 AI DC</span></div>",
-            unsafe_allow_html=True)
-        with c[1]:
-            if st.button("자재 등록", key="hdr_register", type="primary",
-                         icon=":material/add:", use_container_width=True):
-                st.session_state["nav"] = "자재 등록"; st.rerun()
-        with c[2]:
+    # 고정 글로벌 상단바 (브랜드)
+    st.markdown(
+        "<div class='ps-topbar'><div class='ps-topbar-brand'>"
+        "<span class='ps-topbar-badge'>⇄</span>"
+        "<span class='ps-topbar-name'>주Go받Go</span>"
+        "<span class='ps-topbar-sub'>협력사 자재 나눔·대여 · 삼성물산</span>"
+        "</div></div>",
+        unsafe_allow_html=True)
+    # 우측 액션(알림·도움말·사용자) — 상단바 위 고정 배치
+    with st.container(key="ps_actions"):
+        a = st.columns([1, 1, 1.6])
+        with a[0]:
             with st.popover(f"🔔 {unread}" if unread else "🔔", use_container_width=True):
                 _notif_panel(notifs, unread)
-        with c[3]:
+        with a[1]:
             with st.popover("?", use_container_width=True, help="활용 방법"):
                 _faq_content()
-        with c[4]:
+        with a[2]:
             org = (user.get("organizations") or {}).get("name", "")
             with st.popover(user.get("name", "사용자"), use_container_width=True):
                 st.markdown(f"**{user.get('name','')}**  \n{org}  \n"
@@ -1278,36 +1317,57 @@ def main():
 
     user = auth.current_user()
     render_header(user)
-    # 자재 등록은 헤더의 '+ 자재 등록' CTA 로 진입 → 사이드바 nav 에서는 제외(중복 제거)
-    nav_items = [
-        ("대시보드", ":material/bar_chart:"),
-        ("자재 목록", ":material/grid_view:"),
-        ("구해요", ":material/campaign:"),
-        ("공유 현황", ":material/groups:"),
-        ("내 신청함", ":material/inbox:"),
-        ("내 자재 관리", ":material/inventory_2:"),
-    ]
-    if auth.is_admin():
-        nav_items.append(("관리자", ":material/settings:"))
-    valid_pages = {"자재 목록", "구해요", "공유 현황", "자재 등록", "내 신청함", "내 자재 관리", "대시보드", "관리자"}
+
+    nav_pages = ["대시보드", "자재 목록", "구해요", "공유 현황", "내 신청함", "내 자재 관리"]
+    valid_pages = {*nav_pages, "자재 등록", "관리자"}
     choice = st.session_state.get("nav", "대시보드")
     if choice not in valid_pages:
         choice = "대시보드"
+
+    mode = st.session_state.get("sidebar_mode", "expanded")
+    mini = mode == "mini"
+    _toggle_body_class("ps-sidebar-mini", mini)
+
+    def _go(label):
+        st.session_state["nav"] = label
+        st.rerun()
+
     with st.sidebar:
+        # mini ↔ expanded 토글
+        st.markdown("<div class='ps-sb-toggle'>", unsafe_allow_html=True)
+        if st.button("»" if mini else "«", key="sb_toggle"):
+            st.session_state["sidebar_mode"] = "expanded" if mini else "mini"
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+        # 브랜드
         st.markdown(
-            "<div style='display:flex;align-items:center;gap:9px;padding:2px 4px 14px'>"
-            "<div style='width:30px;height:30px;border-radius:8px;background:#1e293b;color:#fff;"
-            "display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:800'>⇄</div>"
-            "<div style='display:flex;flex-direction:column;line-height:1.1'>"
-            "<span style='font-weight:800;font-size:15px'>주Go받Go</span>"
-            "<span style='color:#64748b;font-size:11px'>협력사 자재 나눔·대여 · 삼성물산</span></div></div>",
+            "<div class='ps-sb-brand' style='display:flex;align-items:center;gap:8px;margin:2px 2px 1px'>"
+            "<span style='width:28px;height:28px;border-radius:8px;background:#1e293b;color:#fff;"
+            "display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800'>⇄</span>"
+            "<span style='font-weight:800;font-size:15px'>주Go받Go</span></div>"
+            "<div class='ps-sb-sub' style='color:#64748b;font-size:11px;margin:0 2px 12px'>협력사 자재 나눔·대여</div>",
             unsafe_allow_html=True)
-        for label, icon in nav_items:
-            if st.button(label, icon=icon, key=f"nav_{label}",
+        # 번호형 메뉴
+        for idx, label in enumerate(nav_pages, start=1):
+            blabel = f"{idx}" if mini else f"{idx}. {label}"
+            if st.button(blabel, key=f"nav_{label}",
                          type="primary" if label == choice else "secondary",
                          use_container_width=True):
-                st.session_state["nav"] = label
-                st.rerun()
+                _go(label)
+        # + 자재 등록
+        if st.button("+" if mini else "+ 자재 등록", key="nav_자재 등록",
+                     type="primary" if choice == "자재 등록" else "secondary",
+                     use_container_width=True):
+            _go("자재 등록")
+        # 관리자
+        if auth.is_admin():
+            if st.button("A" if mini else "A. 관리자", key="nav_관리자",
+                         type="primary" if choice == "관리자" else "secondary",
+                         use_container_width=True):
+                _go("관리자")
+        # 푸터
+        st.markdown("<div class='ps-sb-foot'>주Go받Go · 삼성물산<br>v1.0 · 2026-06-30</div>",
+                    unsafe_allow_html=True)
 
     {
         "자재 목록": page_catalog,
