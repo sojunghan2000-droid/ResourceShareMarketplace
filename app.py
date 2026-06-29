@@ -212,13 +212,13 @@ div[data-testid="stToolbar"]{ display:none !important; }
   background:transparent !important; border:none !important; color:var(--ss-muted) !important;
   padding:0 .5rem !important; font-size:.85rem !important; font-weight:700 !important; }
 .st-key-notify_btn button:hover{ background:#f1f5f9 !important; color:var(--ss-fg) !important; }
-.st-key-notify_btn button div[aria-hidden="true"]{ display:none !important; }
+.st-key-notify_btn button svg, .st-key-notify_btn button div[aria-hidden="true"]{ display:none !important; }
 .st-key-help_btn{ position:fixed; top:13px; right:9.5rem; z-index:9001; width:38px; }
 .st-key-help_btn button{ width:38px; height:38px; min-height:38px; border-radius:50% !important;
   background:transparent !important; border:none !important; color:var(--ss-muted) !important;
   padding:0 !important; font-size:1rem !important; font-weight:700 !important; }
 .st-key-help_btn button:hover{ background:#f1f5f9 !important; color:var(--ss-fg) !important; }
-.st-key-help_btn button div[aria-hidden="true"]{ display:none !important; }
+.st-key-help_btn button svg, .st-key-help_btn button div[aria-hidden="true"]{ display:none !important; }
 .st-key-avatar_menu{ position:fixed; top:12px; right:1.75rem; z-index:9001; width:40px; }
 .st-key-avatar_menu button[data-testid="stPopoverButton"]{ width:40px; height:40px; min-height:40px;
   border-radius:50%; background:linear-gradient(135deg,#60a5fa,#2563eb) !important; color:#fff !important;
