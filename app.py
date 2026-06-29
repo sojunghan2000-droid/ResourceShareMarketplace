@@ -1,4 +1,4 @@
-"""SafeShare — 협력사 간 잉여 안전자재 공유 플랫폼 (MVP)
+"""주Go받Go앱 — 협력사 간 잉여 안전자재 나눔·대여 플랫폼 (Streamlit)
 
 단일 파일 라우팅(사이드바) + lib/ 모듈. 상태 전이는 모두 lib.db 의 RPC 래퍼로.
 """
@@ -14,7 +14,7 @@ import streamlit as st
 
 from core import auth, db
 
-st.set_page_config(page_title="SafeShare 안전자재 공유", page_icon="🦺", layout="wide")
+st.set_page_config(page_title="주Go받Go앱", page_icon="⇄", layout="wide")
 
 STATUS_KR = {
     "REQUESTED": "신청대기", "APPROVED": "대여승인", "ON_LOAN": "대여중",
@@ -337,9 +337,9 @@ def login_view():
             "<div style='text-align:center;margin:8vh 0 4px'>"
             "<div style='display:inline-flex;width:52px;height:52px;border-radius:14px;"
             "background:#2563eb;color:#fff;align-items:center;justify-content:center;"
-            "font-size:26px;box-shadow:0 2px 8px rgba(37,99,235,.4)'>🛡️</div>"
-            "<h1 style='margin:14px 0 2px;font-size:1.8rem'>SafeShare</h1>"
-            "<p style='color:#64748b;margin:0'>협력사 간 잉여 안전자재 무상 대여 플랫폼</p></div>",
+            "font-size:28px;font-weight:800;box-shadow:0 2px 8px rgba(37,99,235,.4)'>⇄</div>"
+            "<h1 style='margin:14px 0 2px;font-size:1.8rem'>주Go받Go앱</h1>"
+            "<p style='color:#64748b;margin:0'>협력사 간 잉여 안전자재 나눔·대여 플랫폼</p></div>",
             unsafe_allow_html=True)
         with st.container(border=True):
             tab_login, tab_signup = st.tabs(["로그인", "가입 신청"])
@@ -1088,10 +1088,10 @@ def main():
         st.markdown(
             "<div style='display:flex;align-items:center;gap:9px;padding:2px 4px 14px'>"
             "<div style='width:30px;height:30px;border-radius:8px;background:#1e293b;color:#fff;"
-            "display:flex;align-items:center;justify-content:center;font-size:16px'>🛡️</div>"
+            "display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:800'>⇄</div>"
             "<div style='display:flex;flex-direction:column;line-height:1.1'>"
-            "<span style='font-weight:800;font-size:15px'>SafeShare</span>"
-            "<span style='color:#64748b;font-size:11px'>안전자재 공유 플랫폼</span></div></div>",
+            "<span style='font-weight:800;font-size:15px'>주Go받Go</span>"
+            "<span style='color:#64748b;font-size:11px'>협력사 자재 나눔·대여 · 삼성물산</span></div></div>",
             unsafe_allow_html=True)
         for label, icon in nav_items:
             if st.button(label, icon=icon, key=f"nav_{label}",
