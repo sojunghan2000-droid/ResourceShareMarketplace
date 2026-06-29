@@ -228,8 +228,20 @@ div[data-testid="stToolbar"]{ display:none !important; }
 .st-key-avatar_menu button[data-testid="stPopoverButton"] div[aria-hidden="true"],
 .st-key-avatar_menu button[data-testid="stPopoverButton"] svg{ display:none !important; }
 
-/* ===== 사이드바: 상단바 아래로 + 네이티브 collapse 숨김 ===== */
-section[data-testid="stSidebar"]{ margin-top:64px; }
+/* ===== 사이드바: 상단바 아래로 + 항상 펼침 강제(네이티브 collapse 무력화) ===== */
+section[data-testid="stSidebar"]{
+  margin-top:64px !important;
+  transform:none !important;
+  visibility:visible !important;
+  margin-left:0 !important;
+  overflow:visible !important;
+  min-width:244px !important; width:244px !important;
+}
+section[data-testid="stSidebar"][aria-expanded="false"]{
+  transform:none !important; visibility:visible !important; margin-left:0 !important;
+  min-width:244px !important; width:244px !important;
+}
+section[data-testid="stSidebar"] > div{ visibility:visible !important; }
 [data-testid="stSidebarCollapseButton"]{ display:none !important; }
 [data-testid="stSidebarHeader"]{ display:none !important; }
 .ps-sb-toggle button{ background:transparent !important; border:none !important; color:var(--ss-muted) !important;
