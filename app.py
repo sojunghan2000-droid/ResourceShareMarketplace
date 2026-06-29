@@ -889,7 +889,7 @@ def page_share(user):
         st.markdown("**🏢 협력사별 현황**")
         body = ("<tr style='color:#64748b;text-align:left;font-size:.8rem'>"
                 "<th style='padding:6px 0'>협력사</th><th>등록 자재</th>"
-                "<th>대여 제공</th><th>대여 사용</th><th>연체</th></tr>")
+                "<th>대여 제공</th><th>대여 사용</th><th>연체</th><th>CO₂ 저감</th></tr>")
         for r in stats:
             od = ("<span style='color:#16a34a'>✓✓</span>" if r["overdue_count"] == 0
                   else f"<span style='color:#dc2626;font-weight:700'>{r['overdue_count']}건</span>")
@@ -897,7 +897,8 @@ def page_share(user):
                      f"<td style='font-weight:700;padding:9px 0'>{r['org_name']}</td>"
                      f"<td>{r['materials_count']}종</td>"
                      f"<td style='color:#2563eb'>{r['provided_count']}건</td>"
-                     f"<td style='color:#2563eb'>{r['used_count']}건</td><td>{od}</td></tr>")
+                     f"<td style='color:#2563eb'>{r['used_count']}건</td><td>{od}</td>"
+                     f"<td style='color:#16a34a'>{round(r.get('co2_avoided') or 0):,}kg</td></tr>")
         st.markdown(f"<table style='width:100%;font-size:.88rem'>{body}</table>", unsafe_allow_html=True)
 
     # ── 전체 대여 현황 (조직 단위, 개인명 제외) ──
@@ -957,6 +958,14 @@ def page_admin(user):
                 n = db.send_overdue_reminders()
                 st.success(f"독촉 발송: {n}건")
 
+    # ── 1.5) 나눔 마감 일괄 비공개 ────────────────────
+    if st.button("나눔 마감 일괄 비공개", key="expire_gives"):
+        try:
+            n = db.mark_expired_gives()
+            st.success(f"마감 지난 나눔 비공개: {n}건")
+        except Exception as e:
+            st.error(f"실패: {e}")
+
     # ── 2) 승인 대기 (대여 신청) ──────────────────────
     title = "승인 대기" + (f"  {badge(f'{len(requested)}건','warning',solid=True)}" if requested else "")
     st.markdown(f"<div style='font-weight:700;font-size:1.05rem;margin:8px 0 6px'>{title}</div>",
@@ -1014,21 +1023,27 @@ def page_admin(user):
 
     # ── 3.5) 표준단가 관리 (절감액 기준) ───────────────
     with st.container(border=True):
-        st.markdown("**💰 표준단가 관리** <span style='color:#64748b;font-size:.8rem'>· 대시보드 절감액 산정 기준 (원/EA·일)</span>",
+        st.markdown("**표준단가·탄소 원단위** <span style='color:#64748b;font-size:.8rem'>· 절감액(원/EA·일) + CO₂ 저감(kg/단위) 산정 기준</span>",
                     unsafe_allow_html=True)
         prices = db.category_prices()
+        co2s = db.category_co2()
         price_df = pd.DataFrame({
             "카테고리": [c["major"] for c in cats_list],
             "표준단가(원/EA·일)": [int(prices.get(c["code"], 0)) for c in cats_list],
+            "탄소(kg/단위)": [float(co2s.get(c["code"], 0)) for c in cats_list],
         })
         edited = st.data_editor(
             price_df, hide_index=True, use_container_width=True, key="cp_editor",
             disabled=["카테고리"],
-            column_config={"표준단가(원/EA·일)": st.column_config.NumberColumn(min_value=0, step=50, format="%d")})
-        if st.button("단가 저장", key="cp_save", type="primary"):
+            column_config={
+                "표준단가(원/EA·일)": st.column_config.NumberColumn(min_value=0, step=50, format="%d"),
+                "탄소(kg/단위)": st.column_config.NumberColumn(min_value=0.0, step=0.1, format="%.2f")})
+        if st.button("단가·탄소 저장", key="cp_save", type="primary"):
             for i, c in enumerate(cats_list):
-                db.set_category_price(c["code"], float(edited.iloc[i]["표준단가(원/EA·일)"]))
-            st.success("표준단가를 저장했습니다.")
+                db.set_category_price(c["code"],
+                                      float(edited.iloc[i]["표준단가(원/EA·일)"]),
+                                      float(edited.iloc[i]["탄소(kg/단위)"]))
+            st.success("표준단가·탄소 원단위를 저장했습니다.")
             st.rerun()
 
     # ── 4) 전체 대여 이력 ─────────────────────────────
@@ -1127,6 +1142,129 @@ def page_admin(user):
                     st.error(str(e))
 
 
+_REQ_STATUS_KR = {"open": "모집중", "fulfilled": "성사", "closed": "마감"}
+_REQ_STATUS_TONE = {"open": "warning", "fulfilled": "success", "closed": "muted"}
+
+
+def page_requests(user):
+    st.markdown("## 구해요")
+    st.caption("필요한 자재를 올리면 보유 협력사가 나눔·대여로 제안합니다.")
+    cats = db.list_categories()
+    code_by_major = {c["major"]: c["code"] for c in cats}
+
+    with st.expander("구해요 올리기"):
+        with st.form("new_req"):
+            major = st.selectbox("카테고리", [c["major"] for c in cats])
+            title = st.text_input("품목명*", placeholder="예: 안전난간 1.2m")
+            c1, c2 = st.columns(2)
+            qty = c1.number_input("필요 수량*", 1, 100000, 1)
+            needed = c2.date_input("필요 기한(선택)", value=None)
+            location = st.text_input("현장/위치(선택)")
+            reason = st.text_input("사유/메모(선택)")
+            if st.form_submit_button("등록", type="primary"):
+                if not title.strip():
+                    st.error("품목명은 필수입니다.")
+                else:
+                    try:
+                        db.create_material_request(code_by_major[major], title.strip(),
+                                                   int(qty), needed, location, reason)
+                        st.success("구해요를 올렸습니다."); st.rerun()
+                    except Exception as e:
+                        st.error(f"등록 실패: {e}")
+
+    reqs = db.list_material_requests()
+    if not reqs:
+        with st.container(border=True):
+            st.markdown("<div style='text-align:center;color:#64748b;padding:36px 0'>"
+                        "아직 올라온 구해요가 없어요. 첫 요청을 올려보세요.</div>", unsafe_allow_html=True)
+        return
+
+    for r in reqs:
+        with st.container(border=True):
+            sub = f"{r.get('major') or r['category']} · {r['requester_org']}"
+            if r.get("needed_by"):
+                sub += f" · ~{r['needed_by']}"
+            if r.get("location"):
+                sub += f" · {r['location']}"
+            st.markdown(
+                "<div style='display:flex;justify-content:space-between;align-items:center;gap:10px'>"
+                f"<div><div style='font-weight:700;font-size:1rem'>{r['title']} "
+                f"<span style='color:#64748b;font-weight:400'>{r['qty']}개</span></div>"
+                f"<div style='color:#64748b;font-size:.84rem;margin-top:2px'>{sub}</div></div>"
+                f"<div style='display:flex;gap:6px;align-items:center'>"
+                f"{badge(_REQ_STATUS_KR.get(r['status'], r['status']), _REQ_STATUS_TONE.get(r['status'], 'muted'), solid=True)}"
+                f"<span style='color:#64748b;font-size:.78rem'>제안 {r['proposal_count']}</span></div></div>",
+                unsafe_allow_html=True)
+            if r.get("reason"):
+                st.markdown(f"<div style='color:#64748b;font-size:.82rem;margin-top:2px'>{r['reason']}</div>",
+                            unsafe_allow_html=True)
+
+            if r["is_mine"]:
+                with st.expander(f"받은 제안 ({r['proposal_count']})"):
+                    props = db.list_proposals_for_request(r["id"])
+                    if not props:
+                        st.caption("아직 받은 제안이 없습니다.")
+                    for p in props:
+                        cc1, cc2 = st.columns([4, 1])
+                        cc1.markdown(
+                            f"<div style='font-size:.9rem'><b>{p['material_name']}</b> "
+                            f"<span style='color:#64748b'>{p.get('material_spec') or ''}</span> "
+                            f"{deal_badge(p['deal_type'])}</div>"
+                            f"<div style='color:#64748b;font-size:.8rem'>{p['proposer_org']} · 가용 {p['qty_available']}"
+                            f"{(' · ' + p['message']) if p.get('message') else ''}</div>",
+                            unsafe_allow_html=True)
+                        if p["status"] == "proposed" and r["status"] == "open":
+                            if cc2.button("수락", key=f"acc_{p['id']}", type="primary"):
+                                try:
+                                    db.accept_proposal(p["id"])
+                                    st.success("수락됨 — '내 신청함'에서 진행하세요."); st.rerun()
+                                except Exception as e:
+                                    st.error(f"실패: {e}")
+                        else:
+                            cc2.markdown(badge({"accepted": "수락됨", "rejected": "마감",
+                                                "withdrawn": "철회"}.get(p["status"], p["status"]), "muted"),
+                                         unsafe_allow_html=True)
+                if r["status"] == "open" and st.button("요청 마감", key=f"close_{r['id']}"):
+                    try:
+                        db.close_material_request(r["id"]); st.rerun()
+                    except Exception as e:
+                        st.error(f"실패: {e}")
+            elif r["status"] == "open":
+                with st.expander("제안하기"):
+                    my_mats = [m for m in db.list_materials(None, "", True)
+                               if m["org_id"] == user["org_id"] and m["qty_available"] > 0]
+                    if not my_mats:
+                        st.caption("제안 가능한 내 조직 자재가 없습니다(가용 수량 필요).")
+                    else:
+                        opt = st.selectbox(
+                            "내 조직 자재", my_mats, key=f"pm_{r['id']}",
+                            format_func=lambda m: f"{m['name']} {m.get('spec') or ''} · 가용 {m['qty_available']}"
+                                                  f" ({DEAL_KR.get(m.get('deal_type', 'loan'))})")
+                        msg = st.text_input("메시지(선택)", key=f"pmsg_{r['id']}")
+                        if st.button("제안 보내기", key=f"prop_{r['id']}", type="primary"):
+                            try:
+                                db.propose_to_request(r["id"], opt["id"], msg)
+                                st.success("제안을 보냈습니다."); st.rerun()
+                            except Exception as e:
+                                st.error(f"실패: {e}")
+
+
+def _help_panel():
+    """사이드바 활용 방법 FAQ."""
+    st.divider()
+    with st.expander("활용 방법"):
+        st.markdown("**나눔 vs 대여**")
+        st.caption("나눔=무상 양도(반납 없음, 초록) / 대여=빌려주고 반납(주황).")
+        st.markdown("**자재 받기**")
+        st.caption("자재 목록에서 「나눔 받기」/「대여 신청」 → 승인 후 '내 신청함'에서 사진+서명으로 수령.")
+        st.markdown("**자재 내주기**")
+        st.caption("「자재 등록」에서 유형·수량·사진(나눔은 마감기한). 들어온 신청은 '내 자재 관리'에서 승인/반납 확정.")
+        st.markdown("**구해요**")
+        st.caption("필요한 자재를 올리면 보유 협력사가 제안 → 수락 시 거래가 시작됩니다.")
+        st.markdown("**현황**")
+        st.caption("대시보드에서 누적·이번 분기 절감액·CO₂ 저감을, 공유 현황에서 협력사별 현황을 봅니다.")
+
+
 # ----------------------------------------------------------------------
 # 메인 라우팅
 # ----------------------------------------------------------------------
@@ -1142,13 +1280,14 @@ def main():
     nav_items = [
         ("대시보드", ":material/bar_chart:"),
         ("자재 목록", ":material/grid_view:"),
+        ("구해요", ":material/campaign:"),
         ("공유 현황", ":material/groups:"),
         ("내 신청함", ":material/inbox:"),
         ("내 자재 관리", ":material/inventory_2:"),
     ]
     if auth.is_admin():
         nav_items.append(("관리자", ":material/settings:"))
-    valid_pages = {"자재 목록", "공유 현황", "자재 등록", "내 신청함", "내 자재 관리", "대시보드", "관리자"}
+    valid_pages = {"자재 목록", "구해요", "공유 현황", "자재 등록", "내 신청함", "내 자재 관리", "대시보드", "관리자"}
     choice = st.session_state.get("nav", "대시보드")
     if choice not in valid_pages:
         choice = "대시보드"
@@ -1167,9 +1306,11 @@ def main():
                          use_container_width=True):
                 st.session_state["nav"] = label
                 st.rerun()
+        _help_panel()
 
     {
         "자재 목록": page_catalog,
+        "구해요": page_requests,
         "공유 현황": page_share,
         "자재 등록": page_register,
         "내 신청함": page_my_requests,

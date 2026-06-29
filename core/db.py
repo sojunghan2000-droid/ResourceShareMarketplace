@@ -45,10 +45,21 @@ def category_prices() -> dict:
     return {r["code"]: float(r["unit_price"]) for r in rows}
 
 
-def set_category_price(code: str, price: float):
-    """관리자: 카테고리 표준단가 갱신(RLS가 admin 만 허용)."""
-    client().table("category_price").upsert({"code": code, "unit_price": price}).execute()
+@st.cache_data(ttl=300)
+def category_co2() -> dict:
+    """카테고리 코드 → 탄소 원단위(kgCO2e/단위)."""
+    rows = client().table("category_price").select("code, co2_per_unit").execute().data
+    return {r["code"]: float(r.get("co2_per_unit") or 0) for r in rows}
+
+
+def set_category_price(code: str, price: float, co2: float | None = None):
+    """관리자: 카테고리 표준단가(+탄소 원단위) 갱신(RLS가 admin 만 허용)."""
+    row = {"code": code, "unit_price": price}
+    if co2 is not None:
+        row["co2_per_unit"] = co2
+    client().table("category_price").upsert(row).execute()
     category_prices.clear()
+    category_co2.clear()
 
 
 def list_users() -> list[dict]:
@@ -212,6 +223,44 @@ def return_loan(loan_id, return_qty, photos, sign_url, condition="good", note=No
     return rpc("return_loan", {
         "p_loan_id": loan_id, "p_return_qty": return_qty, "p_photos": photos,
         "p_sign_url": sign_url, "p_condition": condition, "p_note": note})
+
+
+def mark_expired_gives():
+    """관리자: 마감 지난 나눔 자재 일괄 비공개(archived)."""
+    return rpc("mark_expired_gives", {})
+
+
+# ---- 구해요(material_requests) ----
+def list_material_requests() -> list[dict]:
+    return client().rpc("list_material_requests", {}).execute().data or []
+
+
+def list_proposals_for_request(req_id) -> list[dict]:
+    return client().rpc("list_proposals_for_request", {"p_request_id": req_id}).execute().data or []
+
+
+def create_material_request(category, title, qty, needed_by, location, reason):
+    return rpc("create_material_request", {
+        "p_category": category, "p_title": title, "p_qty": qty,
+        "p_needed_by": str(needed_by) if needed_by else None,
+        "p_location": location or None, "p_reason": reason or None})
+
+
+def propose_to_request(req_id, material_id, message):
+    return rpc("propose_to_request", {
+        "p_request_id": req_id, "p_material_id": material_id, "p_message": message or None})
+
+
+def accept_proposal(proposal_id):
+    return rpc("accept_proposal", {"p_proposal_id": proposal_id})
+
+
+def close_material_request(req_id):
+    return rpc("close_material_request", {"p_request_id": req_id})
+
+
+def withdraw_proposal(proposal_id):
+    return rpc("withdraw_proposal", {"p_proposal_id": proposal_id})
 
 
 # ----------------------------------------------------------------------
