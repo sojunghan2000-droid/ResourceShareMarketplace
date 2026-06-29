@@ -224,7 +224,10 @@ section[data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"]{ displa
 body.ps-sidebar-mini section[data-testid="stSidebar"]{ width:84px !important; min-width:84px !important; }
 body.ps-sidebar-mini .ps-sb-brand, body.ps-sidebar-mini .ps-sb-sub,
 body.ps-sidebar-mini .ps-sb-foot{ visibility:hidden; }
-body.ps-sidebar-mini section[data-testid="stSidebar"] button > div{ justify-content:center; }
+/* mini: nav 버튼 라벨 숨김(아이콘만), 토글(«/»)은 유지 */
+body.ps-sidebar-mini [class*="st-key-nav_"] button p,
+body.ps-sidebar-mini [class*="st-key-nav_"] button [data-testid="stMarkdownContainer"]{ display:none !important; }
+body.ps-sidebar-mini [class*="st-key-nav_"] button > div{ justify-content:center !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -1318,8 +1321,18 @@ def main():
     user = auth.current_user()
     render_header(user)
 
-    nav_pages = ["대시보드", "자재 목록", "구해요", "공유 현황", "내 신청함", "내 자재 관리"]
-    valid_pages = {*nav_pages, "자재 등록", "관리자"}
+    nav_items = [
+        ("대시보드", ":material/bar_chart:"),
+        ("자재 목록", ":material/grid_view:"),
+        ("구해요", ":material/campaign:"),
+        ("공유 현황", ":material/groups:"),
+        ("내 신청함", ":material/inbox:"),
+        ("내 자재 관리", ":material/inventory_2:"),
+        ("자재 등록", ":material/add:"),
+    ]
+    if auth.is_admin():
+        nav_items.append(("관리자", ":material/settings:"))
+    valid_pages = {label for label, _ in nav_items}
     choice = st.session_state.get("nav", "대시보드")
     if choice not in valid_pages:
         choice = "대시보드"
@@ -1328,10 +1341,6 @@ def main():
     mini = mode == "mini"
     _toggle_body_class("ps-sidebar-mini", mini)
 
-    def _go(label):
-        st.session_state["nav"] = label
-        st.rerun()
-
     with st.sidebar:
         # mini ↔ expanded 토글
         st.markdown("<div class='ps-sb-toggle'>", unsafe_allow_html=True)
@@ -1339,35 +1348,22 @@ def main():
             st.session_state["sidebar_mode"] = "expanded" if mini else "mini"
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
-        # 브랜드
+        # 브랜드 (변경 전과 동일)
         st.markdown(
-            "<div class='ps-sb-brand' style='display:flex;align-items:center;gap:8px;margin:2px 2px 1px'>"
-            "<span style='width:28px;height:28px;border-radius:8px;background:#1e293b;color:#fff;"
-            "display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800'>⇄</span>"
-            "<span style='font-weight:800;font-size:15px'>주Go받Go</span></div>"
-            "<div class='ps-sb-sub' style='color:#64748b;font-size:11px;margin:0 2px 12px'>협력사 자재 나눔·대여</div>",
+            "<div class='ps-sb-brand' style='display:flex;align-items:center;gap:9px;padding:2px 4px 14px'>"
+            "<div style='width:30px;height:30px;border-radius:8px;background:#1e293b;color:#fff;"
+            "display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:800'>⇄</div>"
+            "<div style='display:flex;flex-direction:column;line-height:1.1'>"
+            "<span style='font-weight:800;font-size:15px'>주Go받Go</span>"
+            "<span style='color:#64748b;font-size:11px'>협력사 자재 나눔·대여 · 삼성물산</span></div></div>",
             unsafe_allow_html=True)
-        # 번호형 메뉴
-        for idx, label in enumerate(nav_pages, start=1):
-            blabel = f"{idx}" if mini else f"{idx}. {label}"
-            if st.button(blabel, key=f"nav_{label}",
+        # 아이콘 메뉴 (변경 전 스타일) — mini 모드면 CSS로 라벨 숨겨 아이콘만 표시
+        for label, icon in nav_items:
+            if st.button(label, icon=icon, key=f"nav_{label}",
                          type="primary" if label == choice else "secondary",
                          use_container_width=True):
-                _go(label)
-        # + 자재 등록
-        if st.button("+" if mini else "+ 자재 등록", key="nav_자재 등록",
-                     type="primary" if choice == "자재 등록" else "secondary",
-                     use_container_width=True):
-            _go("자재 등록")
-        # 관리자
-        if auth.is_admin():
-            if st.button("A" if mini else "A. 관리자", key="nav_관리자",
-                         type="primary" if choice == "관리자" else "secondary",
-                         use_container_width=True):
-                _go("관리자")
-        # 푸터
-        st.markdown("<div class='ps-sb-foot'>주Go받Go · 삼성물산<br>v1.0 · 2026-06-30</div>",
-                    unsafe_allow_html=True)
+                st.session_state["nav"] = label
+                st.rerun()
 
     {
         "자재 목록": page_catalog,
