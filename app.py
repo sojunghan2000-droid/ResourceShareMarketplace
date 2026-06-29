@@ -198,7 +198,7 @@ h2{ font-size:1.6rem; }
 /* ===== PyroSafe식 글로벌 고정 상단바 ===== */
 header[data-testid="stHeader"]{ display:none !important; }
 .ps-topbar{
-  position:fixed; top:0; left:0; right:0; height:56px; z-index:9000;
+  position:fixed; top:0; left:0; right:0; height:56px; z-index:999990;
   background:var(--ss-card); border-bottom:1px solid var(--ss-border);
   display:flex; align-items:center; padding:0 1.25rem;
 }
@@ -211,7 +211,7 @@ header[data-testid="stHeader"]{ display:none !important; }
 .block-container{ padding-top:4.6rem !important; }
 section[data-testid="stSidebar"] .block-container{ padding-top:4.2rem !important; }
 /* 우측 액션 — 상단바 위에 고정 배치(가로) */
-.st-key-ps_actions{ position:fixed; top:8px; right:0.75rem; width:360px; z-index:9100; }
+.st-key-ps_actions{ position:fixed; top:8px; right:0.75rem; width:360px; z-index:999991; }
 .st-key-ps_actions [data-testid="stPopover"] button{ border-radius:8px; }
 
 /* ===== 사이드바: 네이티브 collapse 숨김 + mini/번호 메뉴 ===== */
