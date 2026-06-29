@@ -174,8 +174,14 @@ def rpc(name: str, params: dict):
 
 def request_loan(material_id, qty, due, purpose=None, pickup=None):
     return rpc("request_loan", {
-        "p_material_id": material_id, "p_qty": qty, "p_due": str(due),
+        "p_material_id": material_id, "p_qty": qty,
+        "p_due": str(due) if due else None,
         "p_purpose": purpose, "p_pickup": str(pickup) if pickup else None})
+
+
+def complete_give(loan_id, photos, sign_url):
+    """나눔 수령=완료(반납 없음). 사진+서명 증빙 필수."""
+    return rpc("complete_give", {"p_loan_id": loan_id, "p_photos": photos, "p_sign_url": sign_url})
 
 
 def approve_loan(loan_id):

@@ -17,11 +17,12 @@ from core import auth, db
 st.set_page_config(page_title="주Go받Go앱", page_icon="⇄", layout="wide")
 
 STATUS_KR = {
-    "REQUESTED": "신청대기", "APPROVED": "대여승인", "ON_LOAN": "대여중",
+    "REQUESTED": "신청대기", "APPROVED": "승인", "ON_LOAN": "대여중",
     "RETURN_PENDING": "반납확인대기", "RETURNED": "반납완료",
-    "REJECTED": "거절됨", "OVERDUE": "연체",
+    "REJECTED": "거절됨", "OVERDUE": "연체", "COMPLETED": "수령완료",
 }
 INSPECTION_KR = {"good": "양호", "need_check": "점검필요", "no_use": "사용금지", "damaged": "파손"}
+DEAL_KR = {"give": "나눔", "loan": "대여"}
 
 
 # ----------------------------------------------------------------------
@@ -194,10 +195,12 @@ def badge(text: str, tone: str = "muted", solid: bool = False) -> str:
         "primary": ("#dbeafe", "#1d4ed8"), "success": ("#dcfce7", "#15803d"),
         "warning": ("#fef3c7", "#b45309"), "danger": ("#fee2e2", "#b91c1c"),
         "muted": ("#f1f5f9", "#475569"), "outline": ("#ffffff", "#334155"),
+        "give": ("#dcfce7", "#15803d"), "loan": ("#ffedd5", "#c2410c"),
     }
     solidc = {
         "primary": "#2563eb", "success": "#16a34a", "warning": "#f59e0b",
         "danger": "#dc2626", "muted": "#64748b", "outline": "#334155",
+        "give": "#16a34a", "loan": "#ea580c",
     }
     if solid:
         bg, fg, border = solidc.get(tone, "#64748b"), "#ffffff", "border:1px solid transparent;"
@@ -220,8 +223,15 @@ _PIN_SVG = ("<svg width='13' height='13' viewBox='0 0 24 24' fill='none' stroke=
 
 STATUS_TONE = {
     "REQUESTED": "warning", "APPROVED": "primary", "ON_LOAN": "muted",
-    "RETURN_PENDING": "warning", "RETURNED": "success", "REJECTED": "muted", "OVERDUE": "danger",
+    "RETURN_PENDING": "warning", "RETURNED": "success", "REJECTED": "muted",
+    "OVERDUE": "danger", "COMPLETED": "give",
 }
+
+
+def deal_badge(deal_type: str) -> str:
+    """거래유형 배지(나눔=초록/대여=주황)."""
+    dt = deal_type or "loan"
+    return badge(DEAL_KR.get(dt, dt), "give" if dt == "give" else "loan", solid=True)
 
 
 # ----------------------------------------------------------------------
@@ -377,13 +387,16 @@ def login_view():
 # ----------------------------------------------------------------------
 @st.dialog("대여 신청")
 def _request_dialog(m):
+    is_give = m.get("deal_type") == "give"
     st.markdown(f"**{m['name']}** {m.get('spec') or ''} · 가용 {m['qty_available']}{m['unit']}")
     qty = st.number_input("수량", 1, m["qty_available"], 1)
-    c1, c2 = st.columns(2)
-    pickup = c1.date_input("희망 수령일", date.today())
-    due = c2.date_input("반납 예정일", date.today() + timedelta(days=14))
+    pickup = due = None
+    if not is_give:
+        c1, c2 = st.columns(2)
+        pickup = c1.date_input("희망 수령일", date.today())
+        due = c2.date_input("반납 예정일", date.today() + timedelta(days=14))
     purpose = st.text_input("용도/메모", placeholder="예: 7월 정비 공정")
-    if st.button("신청 제출", type="primary", use_container_width=True):
+    if st.button("나눔 받기" if is_give else "신청 제출", type="primary", use_container_width=True):
         try:
             db.request_loan(m["id"], int(qty), due, purpose, pickup)
             st.rerun()
@@ -452,10 +465,15 @@ def _material_card(m, user, major_by_code):
             f"<div class='ss-pad'>"
             f"<div class='ss-row1'><div><div class='ss-name'>{m['name']}</div>"
             f"<div class='ss-spec'>{m.get('spec') or '—'}</div></div>"
-            f"{badge(major_by_code.get(m['category'], m['category']), 'outline')}</div>"
+            f"<div style='display:flex;flex-direction:column;gap:4px;align-items:flex-end'>"
+            f"{deal_badge(m.get('deal_type'))}"
+            f"{badge(major_by_code.get(m['category'], m['category']), 'outline')}</div></div>"
             f"<div class='ss-row2'><span>가용 <b>{m['qty_available']}</b> / {m['qty_total']} {m['unit']}</span>"
             f"{badge(INSPECTION_KR.get(insp), insp_tone, solid=True)}</div>"
-            f"<div class='ss-loc'>{_PIN_SVG} {m.get('location') or '위치 미지정'}</div></div>",
+            f"<div class='ss-loc'>{_PIN_SVG} {m.get('location') or '위치 미지정'}</div>"
+            + (f"<div class='ss-loc' style='color:#c2410c;margin-top:4px'>나눔 마감 {m['deadline']}</div>"
+               if m.get('deal_type') == 'give' and m.get('deadline') else "")
+            + "</div>",
             unsafe_allow_html=True)
         mine = m["org_id"] == user["org_id"]
         editable = mine or auth.is_admin()
@@ -469,7 +487,9 @@ def _material_card(m, user, major_by_code):
         elif blocked:
             st.button("신청 불가", key=f"blk_{m['id']}", disabled=True, use_container_width=True)
         else:
-            if st.button("대여 신청", key=f"req_{m['id']}", type="primary", use_container_width=True):
+            is_give = m.get("deal_type") == "give"
+            if st.button("나눔 받기" if is_give else "대여 신청", key=f"req_{m['id']}",
+                         type="primary", use_container_width=True):
                 _request_dialog(m)
 
 
@@ -483,11 +503,22 @@ def page_catalog(user):
 
     c1, c2, c3 = st.columns([2, 4, 1.3])
     sel = c1.selectbox("카테고리", cats, label_visibility="collapsed")
-    kw = c2.text_input("검색", placeholder="품목·규격 검색", label_visibility="collapsed")
+    kw = c2.text_input("검색", placeholder="품목·규격·위치 검색", label_visibility="collapsed")
     only_av = c3.checkbox("가용만", value=True)
+    d1, d2 = st.columns([3, 2])
+    deal_sel = d1.radio("유형", ["all", "give", "loan"], horizontal=True, label_visibility="collapsed",
+                        format_func=lambda d: {"all": "전체", "give": "나눔", "loan": "대여"}[d])
+    sort_sel = d2.selectbox("정렬", ["recent", "name", "deadline"], label_visibility="collapsed",
+                            format_func=lambda s: {"recent": "최신순", "name": "이름순", "deadline": "마감임박"}[s])
 
     cat_code = None if sel == "전체 카테고리" else code_by_major.get(sel)
     mats = db.list_materials(category=cat_code, keyword=kw, only_available=only_av)
+    if deal_sel != "all":
+        mats = [m for m in mats if (m.get("deal_type") or "loan") == deal_sel]
+    if sort_sel == "name":
+        mats = sorted(mats, key=lambda m: m.get("name") or "")
+    elif sort_sel == "deadline":
+        mats = sorted(mats, key=lambda m: (m.get("deadline") is None, m.get("deadline") or ""))
     if not mats:
         with st.container(border=True):
             st.markdown("<div style='text-align:center;color:#64748b;padding:36px 0'>조건에 맞는 자재가 없습니다.</div>",
@@ -509,6 +540,8 @@ def page_register(user):
     st.caption("잉여 안전자재를 등록해 다른 협력사와 공유하세요.")
     cats = db.list_categories()
     with st.form("reg"):
+        deal = st.radio("거래 유형*", ["give", "loan"], horizontal=True,
+                        format_func=lambda d: "나눔(무상 양도)" if d == "give" else "대여(반납)")
         major = st.selectbox("카테고리", [c["major"] for c in cats])
         name = st.text_input("품목명*")
         spec = st.text_input("규격")
@@ -520,6 +553,7 @@ def page_register(user):
         insp = c4.selectbox("점검상태", list(INSPECTION_KR.keys()),
                             format_func=lambda k: INSPECTION_KR[k])
         expires = c5.date_input("사용기한(없으면 비워두기)", value=None)
+        deadline = st.date_input("나눔 마감기한(나눔만, 선택)", value=None)
         photos = st.file_uploader("사진", type=["jpg", "jpeg", "png"],
                                   accept_multiple_files=True)
         if st.form_submit_button("등록", type="primary"):
@@ -539,25 +573,31 @@ def page_register(user):
                 "location": location, "photos": urls,
                 "inspection_status": insp,
                 "expires_at": str(expires) if expires else None,
+                "deal_type": deal,
+                "deadline": str(deadline) if (deal == "give" and deadline) else None,
             }).execute()
             db.invalidate()
-            st.success("자재가 등록되었습니다.")
+            st.success(f"{'나눔' if deal == 'give' else '대여'} 자재가 등록되었습니다.")
 
 
 # ----------------------------------------------------------------------
 # 페이지: 내 신청함 (Borrower)
 # ----------------------------------------------------------------------
 def _loan_row_html(m, l):
-    """대여 카드 상단: 좌측 품목/수량/반납예정 + 우측 상태 배지."""
+    """거래 카드 상단: 좌측 품목/수량(+대여 반납예정) + 우측 유형·상태 배지."""
     name = m.get("name", "")
     spec = m.get("spec") or ""
+    dt = l.get("deal_type") or m.get("deal_type") or "loan"
+    sub = f"{l['qty']}{m.get('unit','')}"
+    if dt == "loan" and l.get("due_date"):
+        sub += f" · 반납예정 {l['due_date']}"
     return (
         "<div style='display:flex;justify-content:space-between;align-items:center;gap:10px'>"
         f"<div><div style='font-weight:700;font-size:1rem;color:#0f172a'>{name} "
         f"<span style='color:#64748b;font-weight:400'>{spec}</span></div>"
-        f"<div style='color:#64748b;font-size:.84rem;margin-top:2px'>"
-        f"{l['qty']}{m.get('unit','')} · 반납예정 {l['due_date']}</div></div>"
-        f"{badge(STATUS_KR.get(l['status'], l['status']), STATUS_TONE.get(l['status'],'muted'), solid=True)}"
+        f"<div style='color:#64748b;font-size:.84rem;margin-top:2px'>{sub}</div></div>"
+        f"<div style='display:flex;gap:6px;align-items:center'>{deal_badge(dt)}"
+        f"{badge(STATUS_KR.get(l['status'], l['status']), STATUS_TONE.get(l['status'],'muted'), solid=True)}</div>"
         "</div>")
 
 
@@ -575,12 +615,16 @@ def page_my_requests(user):
         with st.container(border=True):
             st.markdown(_loan_row_html(m, l), unsafe_allow_html=True)
             if l["status"] == "APPROVED":
-                with st.expander("수령 확인 (사진+서명 필수)"):
+                is_give = (l.get("deal_type") == "give")
+                with st.expander(("나눔 받기 (사진+서명 필수)" if is_give else "수령 확인 (사진+서명 필수)")):
                     ph, sg = capture_proof(f"pick_{l['id']}")
-                    if st.button("수령 완료", key=f"pk_{l['id']}", type="primary"):
+                    if st.button("받기 완료" if is_give else "수령 완료", key=f"pk_{l['id']}", type="primary"):
                         try:
-                            db.pickup_loan(l["id"], ph, sg)
-                            st.success("수령 처리됨"); st.rerun()
+                            if is_give:
+                                db.complete_give(l["id"], ph, sg)
+                            else:
+                                db.pickup_loan(l["id"], ph, sg)
+                            st.success("처리됨"); st.rerun()
                         except Exception as e:
                             st.error(f"실패: {e}")
             elif l["status"] in ("ON_LOAN", "OVERDUE"):
