@@ -1396,19 +1396,30 @@ def main():
     _toggle_body_class("ps-sidebar-mini", mini)
 
     with st.sidebar:
-        # mini ↔ expanded 토글
-        st.markdown("<div class='ps-sb-toggle'>", unsafe_allow_html=True)
-        if st.button("»" if mini else "«", key="sb_toggle", use_container_width=True):
-            st.session_state["sidebar_mode"] = "expanded" if mini else "mini"
-            st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
-        # 브랜드 (mini면 CSS로 숨김)
-        st.markdown(
-            "<div class='ps-sb-brand' style='font-size:1.2rem;font-weight:800;color:#2563eb;"
-            "line-height:1.2'>⇄ 주Go받Go</div>"
-            "<div class='ps-sb-sub' style='color:#64748b;font-size:.82rem;margin:2px 0 18px'>"
-            "협력사 자재 나눔·대여</div>",
-            unsafe_allow_html=True)
+        if mini:
+            # 접힘: 토글만 (가운데)
+            st.markdown("<div class='ps-sb-toggle'>", unsafe_allow_html=True)
+            if st.button("»", key="sb_toggle", use_container_width=True):
+                st.session_state["sidebar_mode"] = "expanded"
+                st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
+        else:
+            # 펼침: 브랜드 ⇄ 주Go받Go 와 «  토글을 한 줄에 공존
+            bc = st.columns([4, 1], vertical_alignment="center")
+            bc[0].markdown(
+                "<div class='ps-sb-brand' style='font-size:1.2rem;font-weight:800;color:#2563eb;"
+                "line-height:1.2'>⇄ 주Go받Go</div>",
+                unsafe_allow_html=True)
+            with bc[1]:
+                st.markdown("<div class='ps-sb-toggle'>", unsafe_allow_html=True)
+                if st.button("«", key="sb_toggle", use_container_width=True):
+                    st.session_state["sidebar_mode"] = "mini"
+                    st.rerun()
+                st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown(
+                "<div class='ps-sb-sub' style='color:#64748b;font-size:.82rem;margin:6px 0 16px'>"
+                "협력사 자재 나눔·대여</div>",
+                unsafe_allow_html=True)
         # 아이콘 메뉴 — mini면 라벨은 CSS로 숨겨 아이콘만 표시
         for label, icon in nav_items:
             if st.button(label, icon=icon, key=f"nav_{label}",
