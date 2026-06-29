@@ -301,7 +301,7 @@ def render_header(user):
     notifs = db.list_notifications()
     unread = sum(1 for n in notifs if not n.get("read_at"))
     with st.container(key="appheader"):
-        c = st.columns([6, 1.6, 1.1, 2])
+        c = st.columns([6, 1.6, 1.0, 0.8, 2])
         c[0].markdown(
             "<div style='display:flex;align-items:center;gap:10px;padding-top:8px'>"
             "<span style='font-weight:800;font-size:16px;color:#1e293b;letter-spacing:-.01em'>Samsung C&amp;T</span>"
@@ -316,6 +316,9 @@ def render_header(user):
             with st.popover(f"🔔 {unread}" if unread else "🔔", use_container_width=True):
                 _notif_panel(notifs, unread)
         with c[3]:
+            with st.popover("?", use_container_width=True, help="활용 방법"):
+                _faq_content()
+        with c[4]:
             org = (user.get("organizations") or {}).get("name", "")
             with st.popover(user.get("name", "사용자"), use_container_width=True):
                 st.markdown(f"**{user.get('name','')}**  \n{org}  \n"
@@ -1249,20 +1252,19 @@ def page_requests(user):
                                 st.error(f"실패: {e}")
 
 
-def _help_panel():
-    """사이드바 활용 방법 FAQ."""
-    st.divider()
-    with st.expander("활용 방법"):
-        st.markdown("**나눔 vs 대여**")
-        st.caption("나눔=무상 양도(반납 없음, 초록) / 대여=빌려주고 반납(주황).")
-        st.markdown("**자재 받기**")
-        st.caption("자재 목록에서 「나눔 받기」/「대여 신청」 → 승인 후 '내 신청함'에서 사진+서명으로 수령.")
-        st.markdown("**자재 내주기**")
-        st.caption("「자재 등록」에서 유형·수량·사진(나눔은 마감기한). 들어온 신청은 '내 자재 관리'에서 승인/반납 확정.")
-        st.markdown("**구해요**")
-        st.caption("필요한 자재를 올리면 보유 협력사가 제안 → 수락 시 거래가 시작됩니다.")
-        st.markdown("**현황**")
-        st.caption("대시보드에서 누적·이번 분기 절감액·CO₂ 저감을, 공유 현황에서 협력사별 현황을 봅니다.")
+def _faq_content():
+    """활용 방법 FAQ 본문(헤더 ? popover)."""
+    st.markdown("##### 활용 방법")
+    st.markdown("**나눔 vs 대여**")
+    st.caption("나눔=무상 양도(반납 없음, 초록) / 대여=빌려주고 반납(주황).")
+    st.markdown("**자재 받기**")
+    st.caption("자재 목록에서 「나눔 받기」/「대여 신청」 → 승인 후 '내 신청함'에서 사진+서명으로 수령.")
+    st.markdown("**자재 내주기**")
+    st.caption("「자재 등록」에서 유형·수량·사진(나눔은 마감기한). 들어온 신청은 '내 자재 관리'에서 승인/반납 확정.")
+    st.markdown("**구해요**")
+    st.caption("필요한 자재를 올리면 보유 협력사가 제안 → 수락 시 거래가 시작됩니다.")
+    st.markdown("**현황**")
+    st.caption("대시보드에서 누적·이번 분기 절감액·CO₂ 저감을, 공유 현황에서 협력사별 현황을 봅니다.")
 
 
 # ----------------------------------------------------------------------
@@ -1306,7 +1308,6 @@ def main():
                          use_container_width=True):
                 st.session_state["nav"] = label
                 st.rerun()
-        _help_panel()
 
     {
         "자재 목록": page_catalog,
