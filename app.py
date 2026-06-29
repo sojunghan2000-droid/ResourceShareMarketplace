@@ -916,23 +916,40 @@ def page_dashboard(user):
         f"<div style='display:flex;justify-content:space-between;align-items:flex-end;margin-top:18px;height:84px'>{bars}</div></div>",
         unsafe_allow_html=True)
 
-    # ── 최근 대여 현황 ──
+    # ── 협력사별 현황 (전원 공개) ──
     st.write("")
+    stats = db.public_org_stats()
     with st.container(border=True):
-        h = st.columns([4, 1])
-        h[0].markdown("**최근 대여 현황**")
-        if h[1].button("전체 보기 →", key="dash_all", use_container_width=True):
-            st.session_state["nav"] = "내 자재 관리" if is_admin else "내 자재 관리"
-            st.rerun()
-        if not loans:
+        st.markdown("**협력사별 현황**")
+        body = ("<tr style='color:#64748b;text-align:left;font-size:.8rem'>"
+                "<th style='padding:6px 0'>협력사</th><th>등록 자재</th>"
+                "<th>대여 제공</th><th>대여 사용</th><th>연체</th><th>CO₂ 저감</th></tr>")
+        for r in stats:
+            od = ("<span style='color:#16a34a'>✓✓</span>" if r["overdue_count"] == 0
+                  else f"<span style='color:#dc2626;font-weight:700'>{r['overdue_count']}건</span>")
+            body += (f"<tr style='border-top:1px solid #e2e8f0'>"
+                     f"<td style='font-weight:700;padding:9px 0'>{r['org_name']}</td>"
+                     f"<td>{r['materials_count']}종</td>"
+                     f"<td style='color:#2563eb'>{r['provided_count']}건</td>"
+                     f"<td style='color:#2563eb'>{r['used_count']}건</td><td>{od}</td>"
+                     f"<td style='color:#16a34a'>{round(r.get('co2_avoided') or 0):,}kg</td></tr>")
+        st.markdown(f"<table style='width:100%;font-size:.88rem'>{body}</table>", unsafe_allow_html=True)
+
+    # ── 전체 대여 현황 (협력사 간 공유 내역) ──
+    with st.container(border=True):
+        st.markdown("**전체 대여 현황** <span style='color:#94a3b8;font-size:.78rem'>· 협력사 간 공유 내역</span>",
+                    unsafe_allow_html=True)
+        feed = db.public_loan_feed(30)
+        if not feed:
             st.caption("대여 이력이 없습니다.")
-        for l in loans[:5]:
-            m = l.get("materials") or {}
-            color, lab = _DOT.get(l["status"], ("#64748b", l["status"]))
+        for l in feed:
+            color, lab = _DOT.get(l["status"], ("#64748b", STATUS_KR.get(l["status"], l["status"])))
+            period = f"{l.get('pickup_date') or '-'} ~ {l['due_date']}"
             row = st.columns([5, 1])
             row[0].markdown(
-                f"<b>{m.get('name')}</b> {l['qty']}{m.get('unit','')}<br>"
-                f"<span style='color:#64748b;font-size:.8rem'>{org_name.get(l['borrower_org_id'],'')} · ~{l['due_date']}</span>",
+                f"<b>{l['material_name']}</b> {l['qty']}{l.get('unit') or ''}<br>"
+                f"<span style='color:#64748b;font-size:.8rem'>{l.get('lender_org') or '-'} "
+                f"→ {l.get('borrower_org') or '-'} · {period}</span>",
                 unsafe_allow_html=True)
             row[1].markdown(
                 f"<div style='text-align:right;padding-top:6px'><span style='color:{color}'>●</span> "
@@ -1339,13 +1356,11 @@ def main():
 
     user = auth.current_user()
     render_header(user)
-    # 자재 등록은 헤더의 '+ 자재 등록' CTA 로 진입 → 사이드바 nav 에서는 제외(중복 제거)
-    # 아이콘 메뉴(이전 내용). 자재 등록도 사이드바로. 구조는 PyroSafe(토글·브랜드·푸터) 유지.
+    # 아이콘 메뉴. 대시보드에 공유 현황 통합 → '공유 현황' 메뉴 제거.
     nav_items = [
         ("대시보드", ":material/bar_chart:"),
         ("자재 목록", ":material/grid_view:"),
         ("구해요", ":material/campaign:"),
-        ("공유 현황", ":material/groups:"),
         ("내 신청함", ":material/inbox:"),
         ("내 자재 관리", ":material/inventory_2:"),
         ("자재 등록", ":material/add:"),
@@ -1389,7 +1404,6 @@ def main():
     {
         "자재 목록": page_catalog,
         "구해요": page_requests,
-        "공유 현황": page_share,
         "자재 등록": page_register,
         "내 신청함": page_my_requests,
         "내 자재 관리": page_lender,
