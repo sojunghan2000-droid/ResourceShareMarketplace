@@ -786,8 +786,9 @@ def _kpi(col, label, value, unit, icon, color, bg):
 
 
 def _quarter_savings(loans, mat_cat, prices):
-    """추정 절감액 = Σ(카테고리 표준단가 × 수량 × 대여일수). 실제로 나간 대여만 집계.
-    반환: (총액 원, [(라벨, 월별액)] 최근 4개월)."""
+    """절감액 = Σ(대체구매 단가 × 수량). 완료 거래(반납완료+나눔 수령완료)만, 완료월 기준 집계.
+    헤드라인 누적 절감(impact_summary)과 동일 정의(일수 미반영).
+    반환: (최근 4개월 합, [(라벨, 월별액)] 최근 4개월)."""
     today = date.today()
     seq = []
     for i in range(3, -1, -1):
@@ -798,22 +799,19 @@ def _quarter_savings(loans, mat_cat, prices):
     bucket = {ym: 0.0 for ym in seq}
     total = 0.0
     for l in loans:
-        if l["status"] not in ("ON_LOAN", "OVERDUE", "RETURN_PENDING", "RETURNED"):
+        if l["status"] not in ("RETURNED", "COMPLETED"):
             continue
         price = prices.get(mat_cat.get(l["material_id"]), 0)
         if not price:
             continue
-        start = l.get("pickup_date") or (l.get("loaned_at") or "")[:10] or (l.get("requested_at") or "")[:10]
-        if not start:
+        done = (l.get("returned_at") or l.get("loaned_at") or "")[:10]
+        if not done:
             continue
-        sd = date.fromisoformat(start[:10])
-        end_s = (l.get("returned_at") or "")[:10] or l.get("due_date")
-        ed = date.fromisoformat(end_s[:10]) if end_s else today
-        days = max(1, (ed - sd).days)
-        amt = price * l["qty"] * days
+        d = date.fromisoformat(done)
+        amt = price * l["qty"]
         total += amt
-        if (sd.year, sd.month) in bucket:
-            bucket[(sd.year, sd.month)] += amt
+        if (d.year, d.month) in bucket:
+            bucket[(d.year, d.month)] += amt
     return total, [(f"{mm}월", bucket[(yy, mm)]) for (yy, mm) in seq]
 _DOT = {
     "ON_LOAN": ("#2563eb", "대여중"), "OVERDUE": ("#dc2626", "연체"),
@@ -883,7 +881,7 @@ def page_dashboard(user):
                  .properties(height=230))
         st.altair_chart(chart, use_container_width=True)
 
-    # ── 추정 절감액 (분기) — 네이비 카드 (카테고리 표준단가 기반 실계산) ──
+    # ── 월별 절감 추이 — 네이비 카드 (완료 거래 수량×대체구매 단가, 최근 4개월) ──
     total, monthly = _quarter_savings(loans, mat_cat, db.category_prices())
 
     def _won(v):
@@ -910,7 +908,7 @@ def page_dashboard(user):
                  f"<span style='color:#94a3b8;font-size:11px'>{mon}</span></div>")
     right.markdown(
         f"<div style='background:#1e293b;border-radius:14px;padding:18px 20px'>"
-        f"<div style='color:#94a3b8;font-size:.82rem'>추정 절감액 (분기)</div>"
+        f"<div style='color:#94a3b8;font-size:.82rem'>월별 절감 추이 <span style='font-size:.72rem'>· 최근 4개월</span></div>"
         f"<div style='color:#fff;font-size:1.7rem;font-weight:800;margin-top:4px'>{big}"
         f"<span style='font-size:.8rem;font-weight:600;color:#cbd5e1;margin-left:4px'>{unit}</span></div>"
         f"<div style='display:flex;justify-content:space-between;align-items:flex-end;margin-top:18px;height:84px'>{bars}</div></div>",
@@ -1104,27 +1102,27 @@ def page_admin(user):
 
     # ── 3.5) 표준단가 관리 (절감액 기준) ───────────────
     with st.container(border=True):
-        st.markdown("**표준단가·탄소 원단위** <span style='color:#64748b;font-size:.8rem'>· 절감액(원/EA·일) + CO₂ 저감(kg/단위) 산정 기준</span>",
+        st.markdown("**대체구매 단가·탄소 원단위** <span style='color:#64748b;font-size:.8rem'>· 재사용 1건당 절감(원/EA, 구매 회피가) + CO₂ 저감(kg/단위) 산정 기준</span>",
                     unsafe_allow_html=True)
         prices = db.category_prices()
         co2s = db.category_co2()
         price_df = pd.DataFrame({
             "카테고리": [c["major"] for c in cats_list],
-            "표준단가(원/EA·일)": [int(prices.get(c["code"], 0)) for c in cats_list],
+            "대체구매 단가(원/EA)": [int(prices.get(c["code"], 0)) for c in cats_list],
             "탄소(kg/단위)": [float(co2s.get(c["code"], 0)) for c in cats_list],
         })
         edited = st.data_editor(
             price_df, hide_index=True, use_container_width=True, key="cp_editor",
             disabled=["카테고리"],
             column_config={
-                "표준단가(원/EA·일)": st.column_config.NumberColumn(min_value=0, step=50, format="%d"),
+                "대체구매 단가(원/EA)": st.column_config.NumberColumn(min_value=0, step=100, format="%d"),
                 "탄소(kg/단위)": st.column_config.NumberColumn(min_value=0.0, step=0.1, format="%.2f")})
         if st.button("단가·탄소 저장", key="cp_save", type="primary"):
             for i, c in enumerate(cats_list):
                 db.set_category_price(c["code"],
-                                      float(edited.iloc[i]["표준단가(원/EA·일)"]),
+                                      float(edited.iloc[i]["대체구매 단가(원/EA)"]),
                                       float(edited.iloc[i]["탄소(kg/단위)"]))
-            st.success("표준단가·탄소 원단위를 저장했습니다.")
+            st.success("대체구매 단가·탄소 원단위를 저장했습니다.")
             st.rerun()
 
     # ── 4) 전체 대여 이력 ─────────────────────────────
