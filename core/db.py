@@ -126,6 +126,14 @@ def public_loan_feed(limit: int = 30) -> list[dict]:
     return client().rpc("public_loan_feed", {"p_limit": limit}).execute().data
 
 
+@st.cache_data(ttl=30)
+def impact_summary() -> dict:
+    """자원 재사용 누적·이번 분기 절감액·CO₂(impact_summary RPC)."""
+    data = client().rpc("impact_summary", {}).execute().data
+    row = data[0] if isinstance(data, list) and data else (data or {})
+    return row or {}
+
+
 @st.cache_data(ttl=15)
 def list_notifications() -> list[dict]:
     """내 알림 최근 15건(RLS: 본인 것만)."""

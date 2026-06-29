@@ -690,6 +690,25 @@ def page_lender(user):
 # ----------------------------------------------------------------------
 # 페이지: 대시보드
 # ----------------------------------------------------------------------
+def _impact_headline(imp):
+    """자원 재사용 누적·이번 분기 절감·CO₂ 헤드라인(React 임팩트 카드 근사)."""
+    g = lambda k: imp.get(k) or 0
+    st.markdown(
+        "<div style='background:#f0fdf4;border:1px solid rgba(22,163,74,.35);border-radius:12px;"
+        "padding:14px 18px;margin-bottom:10px'>"
+        "<div style='display:flex;flex-wrap:wrap;align-items:baseline;gap:24px'>"
+        "<span style='color:#15803d;font-weight:800;font-size:.92rem'>자원 재사용 임팩트 (누적)</span>"
+        f"<span><b style='font-size:1.5rem;color:#0f172a'>{int(g('reuse_count'))}</b>건"
+        " <span style='color:#64748b;font-size:.78rem'>재사용</span></span>"
+        f"<span><b style='font-size:1.5rem;color:#0f172a'>{round(g('saved_amount')):,}</b>원"
+        " <span style='color:#64748b;font-size:.78rem'>절감</span></span>"
+        f"<span><b style='font-size:1.5rem;color:#16a34a'>{round(g('co2_avoided')):,}</b>kg"
+        " <span style='color:#64748b;font-size:.78rem'>CO₂ 저감</span></span></div>"
+        f"<div style='color:#64748b;font-size:.8rem;margin-top:6px'>이번 분기 · 재사용 {int(g('q_reuse_count'))}건"
+        f" · 절감 {round(g('q_saved_amount')):,}원 · CO₂ {round(g('q_co2_avoided')):,}kg</div>"
+        "</div>", unsafe_allow_html=True)
+
+
 def _kpi(col, label, value, unit, icon, color, bg):
     col.markdown(
         f"<div style='background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px'>"
@@ -745,6 +764,11 @@ def page_dashboard(user):
     st.markdown("## 대시보드")
     org = (user.get("organizations") or {}).get("name", "")
     st.caption("전체 대여 현황 요약입니다. (관리자)" if is_admin else f"{org} · {user.get('name','')}")
+
+    try:
+        _impact_headline(db.impact_summary())
+    except Exception:
+        pass
 
     loans = db.list_all_loans() if is_admin else db.list_incoming_loans(user["org_id"])
     mats = db.list_materials(None, "", False)
