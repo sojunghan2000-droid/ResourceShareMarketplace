@@ -215,7 +215,7 @@ section[data-testid="stSidebar"] .block-container{ padding-top:4.2rem !important
 .st-key-ps_actions [data-testid="stPopover"] button{ border-radius:8px; }
 
 /* ===== 사이드바: 네이티브 collapse 숨김 + mini/번호 메뉴 ===== */
-section[data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"]{ display:none !important; }
+/* 네이티브 사이드바 collapse 버튼은 유지(숨기지 않음) — 접혀도 다시 열 수 있도록 */
 .ps-sb-toggle button{ width:auto !important; min-width:0 !important; padding:0 12px !important;
   margin-left:auto; display:block; }
 .ps-sb-brand{ }
