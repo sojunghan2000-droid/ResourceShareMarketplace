@@ -207,13 +207,13 @@ div[data-testid="stToolbar"]{ display:none !important; }
 .ps-topbar-name{ font-weight:800; font-size:15px; color:var(--ss-fg); }
 .ps-topbar-sub{ color:var(--ss-muted); font-size:12px; }
 /* 우측 고정 위젯: 알림 / 도움말 / 아바타 */
-.st-key-notify_btn{ position:fixed; top:13px; right:6.5rem; z-index:9001; width:54px; }
+.st-key-notify_btn{ position:fixed; top:13px; right:9.5rem; z-index:9001; width:54px; }
 .st-key-notify_btn button{ width:54px; height:38px; min-height:38px; border-radius:999px !important;
   background:transparent !important; border:none !important; color:var(--ss-muted) !important;
   padding:0 .5rem !important; font-size:.85rem !important; font-weight:700 !important; }
 .st-key-notify_btn button:hover{ background:#f1f5f9 !important; color:var(--ss-fg) !important; }
 .st-key-notify_btn button svg, .st-key-notify_btn button div[aria-hidden="true"]{ display:none !important; }
-.st-key-help_btn{ position:fixed; top:13px; right:9.5rem; z-index:9001; width:38px; }
+.st-key-help_btn{ position:fixed; top:13px; right:7rem; z-index:9001; width:38px; }
 .st-key-help_btn button{ width:38px; height:38px; min-height:38px; border-radius:50% !important;
   background:transparent !important; border:none !important; color:var(--ss-muted) !important;
   padding:0 !important; font-size:1rem !important; font-weight:700 !important; }
