@@ -15,7 +15,8 @@ import streamlit.components.v1 as components
 
 from core import auth, db
 
-st.set_page_config(page_title="주Go받Go앱", page_icon="⇄", layout="wide")
+st.set_page_config(page_title="주Go받Go앱", page_icon="⇄", layout="wide",
+                   initial_sidebar_state="expanded")
 
 
 def _toggle_body_class(class_name: str, on: bool) -> None:
