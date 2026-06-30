@@ -228,22 +228,12 @@ div[data-testid="stToolbar"]{ display:none !important; }
 .st-key-avatar_menu button[data-testid="stPopoverButton"] div[aria-hidden="true"],
 .st-key-avatar_menu button[data-testid="stPopoverButton"] svg{ display:none !important; }
 
-/* ===== 사이드바: 좌측 고정 + 본문이 폭을 따라 오른쪽으로(겹침 방지·반응형) ===== */
-:root{ --sb-w:244px; }
-body.ps-sidebar-mini{ --sb-w:80px; }
-
+/* ===== 사이드바: 상단바 아래 + 네이티브 흐름(본문 자동 우측 배치 — 겹침·과여백 방지) ===== */
 section[data-testid="stSidebar"]{
-  position:fixed !important; top:64px !important; left:0 !important; bottom:0 !important;
-  width:var(--sb-w) !important; min-width:var(--sb-w) !important; max-width:var(--sb-w) !important;
-  margin:0 !important; transform:none !important; visibility:visible !important;
-  overflow-y:auto; overflow-x:hidden; z-index:8000; transition:width .2s ease;
+  margin-top:64px !important;
+  width:244px !important; min-width:244px !important;
+  transition:width .2s ease;
 }
-section[data-testid="stSidebar"][aria-expanded="false"]{ transform:none !important; visibility:visible !important; }
-section[data-testid="stSidebar"] > div{ visibility:visible !important; }
-
-/* 본문: 사이드바 오른쪽으로 (폭 추적) */
-section[data-testid="stMain"]{ margin-left:var(--sb-w) !important; transition:margin-left .2s ease; }
-
 [data-testid="stSidebarCollapseButton"]{ display:none !important; }
 [data-testid="stSidebarHeader"]{ display:none !important; }
 .ps-sb-toggle button{ background:transparent !important; border:none !important; color:var(--ss-muted) !important;
@@ -253,23 +243,24 @@ section[data-testid="stMain"]{ margin-left:var(--sb-w) !important; transition:ma
 .st-key-sb_toggle button > div{ justify-content:flex-end !important; }
 .ps-sb-foot{ color:#94a3b8; font-size:.78rem; line-height:1.6; margin-top:1.5rem; padding:0 4px; }
 
-/* mini 모드 (폭 80px) — 라벨 숨겨 아이콘만, 토글(»)은 유지 */
+/* mini 모드 (폭 80px) — 본문은 Streamlit이 자동 추종, 라벨 숨겨 아이콘만 */
+body.ps-sidebar-mini section[data-testid="stSidebar"]{ width:80px !important; min-width:80px !important; max-width:80px !important; }
 body.ps-sidebar-mini section[data-testid="stSidebar"] .block-container{ padding-left:.4rem !important; padding-right:.4rem !important; }
 body.ps-sidebar-mini section[data-testid="stSidebar"] button > div{ justify-content:center !important; }
 body.ps-sidebar-mini [class*="st-key-nav_"] button p,
 body.ps-sidebar-mini [class*="st-key-nav_"] button [data-testid="stMarkdownContainer"]{ display:none !important; }
 body.ps-sidebar-mini .ps-sb-brand, body.ps-sidebar-mini .ps-sb-sub{ visibility:hidden !important; white-space:nowrap !important; overflow:hidden !important; }
 body.ps-sidebar-mini .ps-sb-foot{ display:none !important; }
+body.ps-sidebar-mini .st-key-sb_toggle button > div{ justify-content:center !important; }
 
 /* 반응형: 좁은 화면(≤820px)이면 자동 미니(아이콘만) */
 @media (max-width:820px){
-  :root{ --sb-w:80px; }
+  section[data-testid="stSidebar"]{ width:80px !important; min-width:80px !important; }
   [class*="st-key-nav_"] button p,
   [class*="st-key-nav_"] button [data-testid="stMarkdownContainer"]{ display:none !important; }
   .ps-sb-brand, .ps-sb-sub, .ps-sb-foot{ display:none !important; }
   section[data-testid="stSidebar"] button > div{ justify-content:center !important; }
 }
-body.ps-sidebar-mini .st-key-sb_toggle button > div{ justify-content:center !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -1389,10 +1380,10 @@ def main():
     nav_items = [
         ("대시보드", ":material/bar_chart:"),
         ("자재 목록", ":material/grid_view:"),
+        ("자재 등록", ":material/add:"),
         ("구해요", ":material/campaign:"),
         ("내 신청함", ":material/inbox:"),
         ("내 자재 관리", ":material/inventory_2:"),
-        ("자재 등록", ":material/add:"),
     ]
     if auth.is_admin():
         nav_items.append(("관리자", ":material/settings:"))
